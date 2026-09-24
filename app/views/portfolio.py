@@ -13,7 +13,12 @@ import streamlit as st
 
 from core.analyzer_engine import analyze_trades
 from core.data_loader import load_trades, load_trading_data
-from core.portfolio_engine import build_equity_matrix, combine_equity
+from core.portfolio_engine import (
+    build_equity_matrix,
+    combine_equity,
+    combine_equity_weighted,
+    correlation_matrix,
+)
 
 
 # =========================================================
@@ -169,8 +174,14 @@ def show_portfolio():
     # EQUITY CURVES
     # -----------------------------------------------------
 
-    tab_combined, tab_individual = st.tabs(
-        ["Portfolio (kombiniert)", "Einzelne Strategien"]
+    tab_combined, tab_individual, tab_corr, tab_weights, tab_rolling = st.tabs(
+        [
+            "Portfolio (kombiniert)",
+            "Einzelne Strategien",
+            "Correlation",
+            "Gewichtung",
+            "Rollierende Performance",
+        ]
     )
 
     with tab_combined:
@@ -178,6 +189,15 @@ def show_portfolio():
 
     with tab_individual:
         _show_individual_equity(strategies)
+
+    with tab_corr:
+        _show_correlation(strategies)
+
+    with tab_weights:
+        _show_weighted_equity(strategies)
+
+    with tab_rolling:
+        _show_rolling_performance(strategies)
 
 
 # =========================================================
@@ -265,6 +285,211 @@ def _show_individual_equity(strategies: dict):
             xanchor="center",
             x=0.5,
         ),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+
+# =========================================================
+# KORRELATIONS-HEATMAP
+# =========================================================
+
+def _show_correlation(strategies: dict):
+    """
+    Zeigt die Korrelations-Matrix als Heatmap.
+    """
+
+    st.subheader("Correlation Matrix")
+
+    st.write(
+        "Wie ähnlich laufen die Strategien zueinander? "
+        "Niedrige Werte (nah 0) bedeuten gute Diversifikation."
+    )
+
+    corr = correlation_matrix(strategies)
+
+    if corr.empty:
+        st.info("Mindestens 2 Strategien nötig.")
+        return
+
+    text = corr.map(lambda v: f"{v:.2f}")
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=corr.values,
+            x=corr.columns,
+            y=corr.index,
+            text=text.values,
+            texttemplate="%{text}",
+            textfont={"size": 13},
+            colorscale=[
+                [0.0, "#8B0000"],   # -1 rot
+                [0.5, "#1a1a1a"],   # 0 dunkel
+                [1.0, "#0F8B3C"],   # +1 grün
+            ],
+            zmid=0,
+            zmin=-1,
+            zmax=1,
+            showscale=True,
+            colorbar=dict(title="ρ"),
+        )
+    )
+
+    fig.update_layout(
+        height=450,
+        margin=dict(l=120, r=20, t=20, b=40),
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        font=dict(color="#e6e6e6"),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# =========================================================
+# GEWICHTETE EQUITY
+# =========================================================
+
+def _show_weighted_equity(strategies: dict):
+    """
+    Erlaubt das Einstellen der Gewichte pro Strategie und
+    zeigt die resultierende Portfolio-Equity.
+    """
+
+    st.subheader("Portfolio Weights")
+
+    st.write("Passe die Gewichtung der Strategien an.")
+
+    names = list(strategies.keys())
+    n = len(names)
+
+    # Default: gleichgewichtet
+    default_w = round(100.0 / n, 2)
+
+    weights_pct = {}
+
+    for name in names:
+        weights_pct[name] = st.slider(
+            name,
+            min_value=0,
+            max_value=100,
+            value=int(default_w),
+            step=5,
+            key=f"weight_{name}",
+        )
+
+    total = sum(weights_pct.values())
+
+    if total == 0:
+        st.warning("Bitte mindestens eine Strategie mit Gewicht > 0.")
+        return
+
+    # Auf 1.0 normalisieren
+    weights = {k: v / total for k, v in weights_pct.items()}
+
+    st.caption(
+        f"Summe: {total}% → normalisiert auf 100%"
+    )
+
+    combined = combine_equity_weighted(strategies, weights)
+
+    if combined.empty:
+        st.info("Keine Daten verfügbar.")
+        return
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=combined.index,
+            y=combined.values,
+            mode="lines",
+            name="Gewichtetes Portfolio",
+            line=dict(color="#F59E0B", width=2),
+        )
+    )
+
+    fig.update_layout(
+        height=420,
+        margin=dict(l=60, r=20, t=20, b=40),
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        font=dict(color="#e6e6e6"),
+        xaxis=dict(gridcolor="#333"),
+        yaxis=dict(title="Return %", gridcolor="#333"),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Kennzahlen
+    col1, col2, col3 = st.columns(3)
+
+    final_return = float(combined.iloc[-1])
+    dd = float((combined - combined.cummax()).min())
+
+    with col1:
+        st.metric("Return", f"{final_return:.2f} %")
+    with col2:
+        st.metric("Max Drawdown", f"{dd:.2f} %")
+    with col3:
+        st.metric("Return/DD", f"{abs(final_return/dd):.2f}" if dd != 0 else "–")
+
+
+# =========================================================
+# ROLLIERENDE PERFORMANCE (3 Monate)
+# =========================================================
+
+def _show_rolling_performance(strategies: dict):
+    """
+    Zeigt die rollierende 3-Monats-Performance der kombinierten Equity.
+    """
+
+    st.subheader("Rolling Performance (3 Monate)")
+
+    st.write(
+        "Wie entwickelt sich die Portfolio-Rendite über die Zeit? "
+        "Hilft, um Stabilität einzuschätzen."
+    )
+
+    combined = combine_equity(strategies)
+
+    if combined.empty:
+        st.info("Keine Daten verfügbar.")
+        return
+
+    # Auf Tagesbasis bringen
+    combined = combined.copy()
+    combined.index = pd.to_datetime(combined.index)
+
+    # Rolling 90 Tage Differenz
+    rolling = combined.diff(periods=90)
+
+    fig = go.Figure()
+
+    # Nulllinie
+    fig.add_hline(y=0, line_dash="dash", line_color="#666")
+
+    fig.add_trace(
+        go.Scatter(
+            x=rolling.index,
+            y=rolling.values,
+            mode="lines",
+            name="3-Monats-Rendite",
+            line=dict(color="#A78BFA", width=1.5),
+            fill="tozeroy",
+            fillcolor="rgba(167, 139, 250, 0.15)",
+        )
+    )
+
+    fig.update_layout(
+        height=420,
+        margin=dict(l=60, r=20, t=20, b=40),
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        font=dict(color="#e6e6e6"),
+        xaxis=dict(gridcolor="#333"),
+        yaxis=dict(title="Rendite (3 Mon.) %", gridcolor="#333"),
     )
 
     st.plotly_chart(fig, use_container_width=True)

@@ -158,3 +158,65 @@ def analyze_portfolio(strategies: dict) -> dict:
         "total_net_profit": total_net_profit,
         "by_strategy": by_strategy,
     }
+
+
+
+# =========================================================
+# KORRELATIONS-MATRIX
+# =========================================================
+
+def correlation_matrix(strategies: dict) -> pd.DataFrame:
+    """
+    Berechnet die Pearson-Korrelation zwischen den Strategien.
+
+    Grundlage: die täglichen Änderungen der Equity (%).
+    """
+
+    matrix = build_equity_matrix(strategies)
+
+    if matrix.empty or matrix.shape[1] < 2:
+        return pd.DataFrame()
+
+    # Tägliche Änderungen statt kumulierte Werte
+    daily = matrix.diff().dropna()
+
+    # Pearson-Korrelation
+    corr = daily.corr()
+
+    return corr
+
+
+# =========================================================
+# GEWICHTETE EQUITY
+# =========================================================
+
+def combine_equity_weighted(strategies: dict, weights: dict) -> pd.Series:
+    """
+    Kombinierte Equity mit benutzerdefinierten Gewichten.
+
+    Parameter
+    ---------
+    weights : dict
+        { "Strategie A": 0.5, "Strategie B": 0.3, ... }
+        Summe sollte 1.0 sein.
+    """
+
+    matrix = build_equity_matrix(strategies)
+
+    if matrix.empty:
+        return pd.Series(dtype=float)
+
+    # Nur Strategien berücksichtigen, die in weights stehen
+    cols = [c for c in matrix.columns if c in weights]
+
+    if not cols:
+        return pd.Series(dtype=float)
+
+    weighted = matrix[cols].mul(
+        pd.Series(weights), axis=1
+    )
+
+    combined = weighted.sum(axis=1)
+    combined.name = "Portfolio (gewichtet) %"
+
+    return combined
