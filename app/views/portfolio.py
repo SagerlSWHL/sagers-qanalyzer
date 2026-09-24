@@ -3,8 +3,8 @@ portfolio.py
 ------------
 Portfolio-Seite des Sagers qAnalyzer.
 
-Erlaubt das Hochladen mehrerer Strategie-Dateien und zeigt
-eine kombinierte Portfolio-Ansicht.
+Erlaubt das Hochladen mehrerer Strategie-Dateien ODER das Erzeugen
+synthetischer Demo-Strategien (1 bis 100).
 """
 
 import pandas as pd
@@ -19,6 +19,7 @@ from core.portfolio_engine import (
     combine_equity_weighted,
     correlation_matrix,
 )
+from core.synthetic_data import generate_synthetic_strategies
 
 
 # =========================================================
@@ -27,8 +28,7 @@ from core.portfolio_engine import (
 
 def _is_quantitativo_excel(uploaded_file) -> bool:
     """
-    Prüft, ob eine Excel-Datei ein Quantitativo-Export ist
-    (Sheet 'Handelsgeschäfte' vorhanden).
+    Prüft, ob eine Excel-Datei ein Quantitativo-Export ist.
     """
     if not uploaded_file.name.lower().endswith((".xlsx", ".xls")):
         return False
@@ -52,8 +52,7 @@ def _strategy_name(filename: str) -> str:
     """
     Kürzt einen Dateinamen zu einem lesbaren Strategie-Namen.
     """
-    name = filename.rsplit(".", 1)[0]
-    return name
+    return filename.rsplit(".", 1)[0]
 
 
 # =========================================================
@@ -70,41 +69,69 @@ def show_portfolio():
     st.divider()
 
     # -----------------------------------------------------
-    # DATEI-IMPORT (mehrere Dateien)
+    # QUELLEN-AUSWAHL
     # -----------------------------------------------------
 
     st.subheader("Import Strategies")
 
-    uploaded_files = st.file_uploader(
-        "Excel- oder CSV-Dateien auswählen (mehrere möglich)",
-        type=["csv", "xlsx", "xls"],
-        accept_multiple_files=True,
-    )
+    col_upload, col_demo = st.columns([3, 2])
 
-    if not uploaded_files:
-        st.info("Noch keine Strategien geladen.")
-        return
+    with col_upload:
+        uploaded_files = st.file_uploader(
+            "Excel- oder CSV-Dateien auswählen (mehrere möglich)",
+            type=["csv", "xlsx", "xls"],
+            accept_multiple_files=True,
+        )
+
+    with col_demo:
+        st.write("")
+        st.caption("Keine eigenen Dateien? Demo-Strategien erzeugen:")
+
+        n_demo = st.selectbox(
+            "Anzahl Strategien",
+            options=[1, 5, 10, 20, 50, 100],
+            index=2,  # Default: 10
+        )
+
+        if st.button("🎲  Demo-Strategien laden", use_container_width=True):
+            st.session_state["use_synthetic_portfolio"] = True
+            st.session_state["n_synthetic"] = n_demo
 
     # -----------------------------------------------------
-    # STRATEGIEN LADEN
+    # STRATEGIEN ZUSAMMENSTELLEN
     # -----------------------------------------------------
 
     strategies = {}
 
-    for file in uploaded_files:
-        try:
-            trades = _load_uploaded(file)
-            if trades is not None and not trades.empty:
-                strategies[_strategy_name(file.name)] = trades
-        except Exception as exc:
-            st.warning(f"Konnte '{file.name}' nicht laden: {exc}")
+    if uploaded_files:
+        # Uploads gewinnen immer
+        st.session_state["use_synthetic_portfolio"] = False
+
+        for file in uploaded_files:
+            try:
+                trades = _load_uploaded(file)
+                if trades is not None and not trades.empty:
+                    strategies[_strategy_name(file.name)] = trades
+            except Exception as exc:
+                st.warning(f"Konnte '{file.name}' nicht laden: {exc}")
+
+    elif st.session_state.get("use_synthetic_portfolio"):
+        n = st.session_state.get("n_synthetic", 10)
+        strategies = generate_synthetic_strategies(n)
+        st.info(
+            f"🎲 {n} synthetische Demo-Strategien geladen "
+            "(keine echten Daten)."
+        )
 
     if not strategies:
-        st.error("Keine gültigen Strategien gefunden.")
+        st.info("Noch keine Strategien geladen.")
         return
 
-    st.success(f"{len(strategies)} Strategie(n) geladen: "
-               + ", ".join(strategies.keys()))
+    st.success(
+        f"{len(strategies)} Strategie(n) aktiv: "
+        + ", ".join(list(strategies.keys())[:5])
+        + ("…" if len(strategies) > 5 else "")
+    )
 
     # -----------------------------------------------------
     # PORTFOLIO-KENNZAHLEN
@@ -112,7 +139,6 @@ def show_portfolio():
 
     combined = combine_equity(strategies)
 
-    # Gesamtnetto
     total_net = sum(
         float(df["Netto G&V USD"].sum())
         for df in strategies.values()
@@ -123,10 +149,8 @@ def show_portfolio():
 
     if not combined.empty:
         portfolio_return = float(combined.iloc[-1])
-        portfolio_dd = float((combined - combined.cummax()).min())
     else:
         portfolio_return = 0.0
-        portfolio_dd = 0.0
 
     st.subheader("Portfolio Overview")
 
@@ -156,7 +180,7 @@ def show_portfolio():
         rows.append({
             "Strategie": name,
             "Trades": result["total_trades"],
-            "Net Profit": result["net_profit"],
+            "Net Profit": round(result["net_profit"], 2),
             "Win Rate %": round(result["win_rate"], 2),
             "Profit Factor": round(result["profit_factor"], 3),
             "Max DD %": round(result["max_drawdown"], 2),
@@ -171,10 +195,16 @@ def show_portfolio():
     st.divider()
 
     # -----------------------------------------------------
-    # EQUITY CURVES
+    # TABS
     # -----------------------------------------------------
 
-    tab_combined, tab_individual, tab_corr, tab_weights, tab_rolling = st.tabs(
+    (
+        tab_combined,
+        tab_individual,
+        tab_corr,
+        tab_weights,
+        tab_rolling,
+    ) = st.tabs(
         [
             "Portfolio (kombiniert)",
             "Einzelne Strategien",
@@ -281,14 +311,14 @@ def _show_individual_equity(strategies: dict):
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=-0.3,
+            y=-0.4,
             xanchor="center",
             x=0.5,
+            font=dict(size=9),
         ),
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
 
 
 # =========================================================
@@ -305,12 +335,9 @@ def _show_correlation(strategies: dict):
 
     st.write(
         "Wie ähnlich laufen die Strategien zueinander? "
-        "Werte nahe 0 = gute Diversifikation. "
-        "Werte nahe +1 = ähnliche Bewegung, "
-        "-1 = gegensätzlich."
+        "Werte nahe 0 = gute Diversifikation."
     )
 
-    # Zeitbasis-Auswahl
     freq_labels = {
         "Täglich": "D",
         "Wöchentlich": "W",
@@ -320,7 +347,7 @@ def _show_correlation(strategies: dict):
     selected = st.radio(
         "Zeitbasis:",
         list(freq_labels.keys()),
-        index=2,               # Monatlich vorausgewählt
+        index=2,
         horizontal=True,
     )
 
@@ -341,11 +368,11 @@ def _show_correlation(strategies: dict):
             y=corr.index,
             text=text.values,
             texttemplate="%{text}",
-            textfont={"size": 13},
+            textfont={"size": 10},
             colorscale=[
-                [0.0, "#8B0000"],   # -1 rot
-                [0.5, "#1a1a1a"],   # 0 dunkel
-                [1.0, "#0F8B3C"],   # +1 grün
+                [0.0, "#8B0000"],
+                [0.5, "#1a1a1a"],
+                [1.0, "#0F8B3C"],
             ],
             zmid=0,
             zmin=-1,
@@ -356,7 +383,7 @@ def _show_correlation(strategies: dict):
     )
 
     fig.update_layout(
-        height=450,
+        height=600,
         margin=dict(l=120, r=20, t=20, b=40),
         paper_bgcolor="#0e1117",
         plot_bgcolor="#0e1117",
@@ -366,7 +393,6 @@ def _show_correlation(strategies: dict):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Erklärung unter dem Chart
     st.caption(
         f"Berechnung auf {selected.lower()}er Basis. "
         "Kurzfristige Zeitbasen enthalten mehr Rauschen, "
@@ -380,8 +406,7 @@ def _show_correlation(strategies: dict):
 
 def _show_weighted_equity(strategies: dict):
     """
-    Erlaubt das Einstellen der Gewichte pro Strategie und
-    zeigt die resultierende Portfolio-Equity.
+    Erlaubt das Einstellen der Gewichte pro Strategie.
     """
 
     st.subheader("Portfolio Weights")
@@ -391,12 +416,21 @@ def _show_weighted_equity(strategies: dict):
     names = list(strategies.keys())
     n = len(names)
 
-    # Default: gleichgewichtet
     default_w = round(100.0 / n, 2)
 
     weights_pct = {}
 
-    for name in names:
+    # Bei vielen Strategien: nur die ersten 20 als Slider
+    max_sliders = 20
+    shown = names[:max_sliders]
+
+    if n > max_sliders:
+        st.caption(
+            f"Nur die ersten {max_sliders} Strategien sind einstellbar. "
+            "Die übrigen werden gleichmäßig verteilt."
+        )
+
+    for name in shown:
         weights_pct[name] = st.slider(
             name,
             min_value=0,
@@ -406,18 +440,20 @@ def _show_weighted_equity(strategies: dict):
             key=f"weight_{name}",
         )
 
+    # Restliche Strategien: gleichmäßig
+    remaining = names[max_sliders:]
+    for name in remaining:
+        weights_pct[name] = default_w
+
     total = sum(weights_pct.values())
 
     if total == 0:
         st.warning("Bitte mindestens eine Strategie mit Gewicht > 0.")
         return
 
-    # Auf 1.0 normalisieren
     weights = {k: v / total for k, v in weights_pct.items()}
 
-    st.caption(
-        f"Summe: {total}% → normalisiert auf 100%"
-    )
+    st.caption(f"Summe: {total:.0f}% → normalisiert auf 100%")
 
     combined = combine_equity_weighted(strategies, weights)
 
@@ -449,7 +485,6 @@ def _show_weighted_equity(strategies: dict):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Kennzahlen
     col1, col2, col3 = st.columns(3)
 
     final_return = float(combined.iloc[-1])
@@ -460,16 +495,17 @@ def _show_weighted_equity(strategies: dict):
     with col2:
         st.metric("Max Drawdown", f"{dd:.2f} %")
     with col3:
-        st.metric("Return/DD", f"{abs(final_return/dd):.2f}" if dd != 0 else "–")
+        ratio = abs(final_return / dd) if dd != 0 else 0
+        st.metric("Return/DD", f"{ratio:.2f}")
 
 
 # =========================================================
-# ROLLIERENDE PERFORMANCE (3 Monate)
+# ROLLIERENDE PERFORMANCE
 # =========================================================
 
 def _show_rolling_performance(strategies: dict):
     """
-    Zeigt die rollierende 3-Monats-Performance der kombinierten Equity.
+    Rollierende 3-Monats-Performance der kombinierten Equity.
     """
 
     st.subheader("Rolling Performance (3 Monate)")
@@ -485,16 +521,13 @@ def _show_rolling_performance(strategies: dict):
         st.info("Keine Daten verfügbar.")
         return
 
-    # Auf Tagesbasis bringen
     combined = combined.copy()
     combined.index = pd.to_datetime(combined.index)
 
-    # Rolling 90 Tage Differenz
     rolling = combined.diff(periods=90)
 
     fig = go.Figure()
 
-    # Nulllinie
     fig.add_hline(y=0, line_dash="dash", line_color="#666")
 
     fig.add_trace(

@@ -5,6 +5,8 @@ Analyzer-Seite des Sagers qAnalyzer.
 
 Erlaubt das Hochladen einer Trading-Datei (CSV/Excel),
 lädt die Trades, berechnet alle Kennzahlen und zeigt sie an.
+
+Zusätzlich: Button für synthetische Beispieldaten (keine echten Strategien).
 """
 
 import pandas as pd
@@ -14,6 +16,7 @@ import numpy as np
 
 from core.data_loader import load_trades, load_trading_data
 from core.analyzer_engine import analyze_trades
+from core.synthetic_data import generate_single_strategy
 
 
 # =========================================================
@@ -42,7 +45,6 @@ def _load_uploaded(uploaded_file):
     if _is_quantitativo_excel(uploaded_file):
         return load_trades(uploaded_file)
 
-    # Fallback: generische CSV/Excel
     return load_trading_data(uploaded_file)
 
 
@@ -77,21 +79,45 @@ def show_analyzer():
 
     st.subheader("Import Trading Data")
 
-    uploaded_file = st.file_uploader(
-        "CSV- oder Excel-Datei auswählen",
-        type=["csv", "xlsx", "xls"]
-    )
+    col_upload, col_sample = st.columns([3, 1])
 
-    if uploaded_file is None:
+    with col_upload:
+        uploaded_file = st.file_uploader(
+            "CSV- oder Excel-Datei auswählen",
+            type=["csv", "xlsx", "xls"],
+        )
+
+    with col_sample:
+        st.write("")
+        st.write("")
+        if st.button("🎲  Beispiel", use_container_width=True):
+            st.session_state["use_synthetic"] = True
+
+    # -----------------------------------------------------
+    # QUELLE BESTIMMEN
+    # -----------------------------------------------------
+
+    if uploaded_file is not None:
+        st.session_state["use_synthetic"] = False
+        source = uploaded_file
+        is_synthetic = False
+    elif st.session_state.get("use_synthetic"):
+        source = None
+        is_synthetic = True
+        st.info("📊 Synthetische Beispielstrategie geladen (keine echten Daten).")
+    else:
         st.info("Noch keine Trading-Datei geladen.")
         return
 
     # -----------------------------------------------------
-    # DATEI LADEN
+    # DATEN LADEN
     # -----------------------------------------------------
 
     try:
-        trades = _load_uploaded(uploaded_file)
+        if is_synthetic:
+            trades = generate_single_strategy(seed=7)
+        else:
+            trades = _load_uploaded(source)
     except Exception as exc:
         st.error(f"Fehler beim Laden der Datei: {exc}")
         return
@@ -100,7 +126,10 @@ def show_analyzer():
         st.warning("Die Datei enthält keine Trades.")
         return
 
-    st.success(f"Datei geladen: {uploaded_file.name}  ({len(trades)} Trades)")
+    if is_synthetic:
+        st.success(f"Datei geladen: Beispieldaten ({len(trades)} Trades)")
+    else:
+        st.success(f"Datei geladen: {uploaded_file.name}  ({len(trades)} Trades)")
 
     # -----------------------------------------------------
     # ANALYSE
@@ -153,7 +182,7 @@ def show_analyzer():
     # -----------------------------------------------------
 
     tab_equity, tab_dd, tab_monthly, tab_dist, tab_trades = st.tabs(
-    ["Equity Curve", "Drawdown", "Monthly", "Distribution", "Trades"]
+        ["Equity Curve", "Drawdown", "Monthly", "Distribution", "Trades"]
     )
 
     with tab_equity:
@@ -199,6 +228,9 @@ def _show_equity_chart(trades: pd.DataFrame):
     st.line_chart(chart_data)
 
 
+# =========================================================
+# DRAWDOWN CHART
+# =========================================================
 
 def _show_drawdown_chart(trades: pd.DataFrame):
     """
@@ -243,7 +275,6 @@ def _show_trades_table(trades: pd.DataFrame):
     )
 
 
-
 # =========================================================
 # MONTHLY HEATMAP
 # =========================================================
@@ -264,12 +295,10 @@ def _show_monthly_heatmap(trades: pd.DataFrame):
         st.info("Keine Monatsdaten gefunden.")
         return
 
-    # Zellen-Beschriftung (mit Vorzeichen, 2 Nachkommastellen)
     text = pivot.map(
         lambda v: f"{v:+.2f}" if pd.notna(v) else ""
     )
 
-    # Farbskala symmetrisch um 0
     max_abs = float(pivot.abs().max().max())
 
     fig = go.Figure(
@@ -281,9 +310,9 @@ def _show_monthly_heatmap(trades: pd.DataFrame):
             texttemplate="%{text}",
             textfont={"size": 11},
             colorscale=[
-                [0.0, "#8B0000"],   # stark rot
-                [0.5, "#1a1a1a"],   # neutral dunkel
-                [1.0, "#0F8B3C"],   # stark grün
+                [0.0, "#8B0000"],
+                [0.5, "#1a1a1a"],
+                [1.0, "#0F8B3C"],
             ],
             zmid=0,
             zmin=-max_abs,
@@ -310,8 +339,6 @@ def _show_monthly_heatmap(trades: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-
-
 # =========================================================
 # TRADE DISTRIBUTION (Histogramm)
 # =========================================================
@@ -330,7 +357,6 @@ def _show_trade_distribution(trades: pd.DataFrame):
 
     pnl = trades["Netto G&V USD"]
 
-    # Bin-Mittelpunkte berechnen, um sie einzufärben
     counts, bin_edges = np.histogram(pnl, bins=40)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
@@ -363,7 +389,6 @@ def _show_trade_distribution(trades: pd.DataFrame):
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Statistik-Karten darunter
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
