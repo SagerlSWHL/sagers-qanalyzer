@@ -10,6 +10,7 @@ lädt die Trades, berechnet alle Kennzahlen und zeigt sie an.
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import numpy as np
 
 from core.data_loader import load_trades, load_trading_data
 from core.analyzer_engine import analyze_trades
@@ -310,6 +311,7 @@ def _show_monthly_heatmap(trades: pd.DataFrame):
 
 
 
+
 # =========================================================
 # TRADE DISTRIBUTION (Histogramm)
 # =========================================================
@@ -317,6 +319,7 @@ def _show_monthly_heatmap(trades: pd.DataFrame):
 def _show_trade_distribution(trades: pd.DataFrame):
     """
     Histogramm der P&L-Werte pro Trade.
+    Farbe: rot für Verluste, grün für Gewinne.
     """
 
     st.subheader("Trade Distribution")
@@ -327,48 +330,40 @@ def _show_trade_distribution(trades: pd.DataFrame):
 
     pnl = trades["Netto G&V USD"]
 
-    fig = go.Figure()
+    # Bin-Mittelpunkte berechnen, um sie einzufärben
+    counts, bin_edges = np.histogram(pnl, bins=40)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
-    # Positive und negative Trades getrennt einfärben
-    fig.add_trace(
-        go.Histogram(
-            x=pnl[pnl < 0],
-            name="Verlierer",
-            marker_color="#EF4444",
-            opacity=0.85,
-        )
-    )
+    colors = [
+        "#EF4444" if center < 0 else "#22C55E"
+        for center in bin_centers
+    ]
 
-    fig.add_trace(
-        go.Histogram(
-            x=pnl[pnl >= 0],
-            name="Gewinner",
-            marker_color="#22C55E",
-            opacity=0.85,
+    fig = go.Figure(
+        data=go.Bar(
+            x=bin_centers,
+            y=counts,
+            marker_color=colors,
+            marker_line_width=0,
+            hovertemplate="P&L: %{x:,.0f} USD<br>Anzahl: %{y}<extra></extra>",
         )
     )
 
     fig.update_layout(
-        barmode="overlay",
         height=420,
-        margin=dict(l=60, r=20, t=30, b=40),
+        margin=dict(l=60, r=20, t=20, b=40),
         paper_bgcolor="#0e1117",
         plot_bgcolor="#0e1117",
         font=dict(color="#e6e6e6"),
         xaxis=dict(title="P&L (USD)", gridcolor="#333"),
         yaxis=dict(title="Anzahl Trades", gridcolor="#333"),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-        ),
+        bargap=0.02,
+        showlegend=False,
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Kleine Statistik-Zeile darunter
+    # Statistik-Karten darunter
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
