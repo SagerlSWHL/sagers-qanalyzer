@@ -6,6 +6,7 @@ from components.sidebar import show_sidebar
 # Seiten importieren
 from views.overview import show_overview
 from views.analyzer import show_analyzer
+from views.portfolio import show_portfolio
 
 
 # ---------------------------------------------------------
@@ -46,6 +47,10 @@ if st.session_state["page"] == "Overview":
 elif st.session_state["page"] == "Analyzer":
 
     show_analyzer()
+
+elif st.session_state["page"] == "Portfolio":
+
+    show_portfolio()
 
 
 else:

@@ -80,6 +80,8 @@ def show_sidebar():
         if st.button("📈  Portfolio", use_container_width=True):
             st.session_state["page"] = "Portfolio"
 
+        """
+
         if st.button("📉  Drawdown", use_container_width=True):
             st.session_state["page"] = "Drawdown"
 
@@ -94,6 +96,7 @@ def show_sidebar():
 
         if st.button("🔗  Correlation", use_container_width=True):
             st.session_state["page"] = "Correlation"
+        """
 
         # -----------------------------------------------------
         # RESEARCH

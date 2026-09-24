@@ -102,25 +102,25 @@ SHEET_RISK = "Risikogewichtete Performance"
 
 def load_trades(source: Union[str, Path, IO]) -> pd.DataFrame:
     """
-    Lädt die einzelnen Trades aus dem Sheet 'Handelsgeschäfte'.
+    Lädt einzelne Trades aus dem Sheet 'Handelsgeschäfte'.
 
-    Jeder Trade erscheint im Sheet zweimal:
-      - Einstiegs-Zeile (Typ: 'Long-Einstieg' / 'Short-Einstieg')
-      - Ausstiegs-Zeile (Typ: 'Long-Ausstieg' / 'Short-Ausstieg')
-
-    Nur die **Ausstiegs-Zeilen** enthalten den finalen P&L –
-    diese Funktion gibt ausschließlich die Ausstiegs-Zeilen zurück.
+    Jeder Trade erscheint im Sheet zweimal (Einstieg + Ausstieg).
+    Diese Funktion gibt nur die Ausstiegs-Zeilen mit finalem P&L zurück.
+    Offene Trades (Datum = 'Offen') werden entfernt.
     """
 
     df = pd.read_excel(source, sheet_name=SHEET_TRADES)
 
-    # Nur Ausstiegs-Zeilen behalten
     exit_mask = df["Typ"].str.contains("Ausstieg", na=False)
     df = df[exit_mask].copy()
 
-    # Nach Trade-Nummer sortieren
-    df = df.sort_values("Trade-Nummer").reset_index(drop=True)
+    # Offene Trades entfernen: Datum nicht parsebar
+    df["Datum und Uhrzeit"] = pd.to_datetime(
+        df["Datum und Uhrzeit"], errors="coerce"
+    )
+    df = df[df["Datum und Uhrzeit"].notna()].copy()
 
+    df = df.sort_values("Trade-Nummer").reset_index(drop=True)
     return df
 
 
