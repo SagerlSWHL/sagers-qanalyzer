@@ -298,16 +298,35 @@ def _show_individual_equity(strategies: dict):
 def _show_correlation(strategies: dict):
     """
     Zeigt die Korrelations-Matrix als Heatmap.
+    Nutzer kann die Zeitbasis wählen (Tag / Woche / Monat).
     """
 
     st.subheader("Correlation Matrix")
 
     st.write(
         "Wie ähnlich laufen die Strategien zueinander? "
-        "Niedrige Werte (nah 0) bedeuten gute Diversifikation."
+        "Werte nahe 0 = gute Diversifikation. "
+        "Werte nahe +1 = ähnliche Bewegung, "
+        "-1 = gegensätzlich."
     )
 
-    corr = correlation_matrix(strategies)
+    # Zeitbasis-Auswahl
+    freq_labels = {
+        "Täglich": "D",
+        "Wöchentlich": "W",
+        "Monatlich (empfohlen)": "ME",
+    }
+
+    selected = st.radio(
+        "Zeitbasis:",
+        list(freq_labels.keys()),
+        index=2,               # Monatlich vorausgewählt
+        horizontal=True,
+    )
+
+    freq = freq_labels[selected]
+
+    corr = correlation_matrix(strategies, freq=freq)
 
     if corr.empty:
         st.info("Mindestens 2 Strategien nötig.")
@@ -342,9 +361,17 @@ def _show_correlation(strategies: dict):
         paper_bgcolor="#0e1117",
         plot_bgcolor="#0e1117",
         font=dict(color="#e6e6e6"),
+        yaxis=dict(autorange="reversed"),
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+    # Erklärung unter dem Chart
+    st.caption(
+        f"Berechnung auf {selected.lower()}er Basis. "
+        "Kurzfristige Zeitbasen enthalten mehr Rauschen, "
+        "langfristige zeigen die echte Beziehung klarer."
+    )
 
 
 # =========================================================

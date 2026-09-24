@@ -165,11 +165,16 @@ def analyze_portfolio(strategies: dict) -> dict:
 # KORRELATIONS-MATRIX
 # =========================================================
 
-def correlation_matrix(strategies: dict) -> pd.DataFrame:
+def correlation_matrix(strategies: dict, freq: str = "ME") -> pd.DataFrame:
     """
-    Berechnet die Pearson-Korrelation zwischen den Strategien.
+    Berechnet die Korrelation zwischen den Strategien.
 
-    Grundlage: die täglichen Änderungen der Equity (%).
+    Parameter
+    ---------
+    freq : str
+        "D"  = täglich
+        "W"  = wöchentlich
+        "ME" = monatlich (Monatsende, Standard)
     """
 
     matrix = build_equity_matrix(strategies)
@@ -177,13 +182,13 @@ def correlation_matrix(strategies: dict) -> pd.DataFrame:
     if matrix.empty or matrix.shape[1] < 2:
         return pd.DataFrame()
 
-    # Tägliche Änderungen statt kumulierte Werte
-    daily = matrix.diff().dropna()
+    # Auf gewünschte Frequenz bringen und Differenzen berechnen
+    resampled = matrix.resample(freq).last().diff().dropna()
 
-    # Pearson-Korrelation
-    corr = daily.corr()
+    if resampled.empty:
+        return pd.DataFrame()
 
-    return corr
+    return resampled.corr()
 
 
 # =========================================================
