@@ -54,6 +54,14 @@ def _strategy_name(filename: str) -> str:
     """
     return filename.rsplit(".", 1)[0]
 
+def _reset_portfolio_selection(all_names):
+    """
+    Callback für den 'Alle zeigen'-Button.
+    Wird von Streamlit VOR dem Neu-Rendern ausgeführt – erlaubt das
+    sichere Setzen von session_state vor dem Multiselect-Widget.
+    """
+    st.session_state["portfolio_selected"] = list(all_names)
+
 
 # =========================================================
 # HAUPTFUNKTION
@@ -97,7 +105,7 @@ def show_portfolio():
             st.session_state["use_synthetic_portfolio"] = True
             st.session_state["n_synthetic"] = n_demo
 
-    # -----------------------------------------------------
+       # -----------------------------------------------------
     # STRATEGIEN ZUSAMMENSTELLEN
     # -----------------------------------------------------
 
@@ -123,12 +131,58 @@ def show_portfolio():
             "(keine echten Daten)."
         )
 
+    # WICHTIG: Erst hier prüfen, ob wir Strategien haben
     if not strategies:
         st.info("Noch keine Strategien geladen.")
         return
 
+    # -----------------------------------------------------
+    # STRATEGIE-FILTER
+    # -----------------------------------------------------
+
+    all_names = list(strategies.keys())
+
+    # Auto-Select: alle vorauswählen, wenn neue Strategien geladen wurden
+    state_key = "portfolio_loaded_set"
+    current_set = tuple(all_names)
+
+    if st.session_state.get(state_key) != current_set:
+        st.session_state["portfolio_selected"] = all_names
+        st.session_state[state_key] = current_set
+
+    st.subheader("Strategie-Auswahl")
+    st.caption(
+        "Blende einzelne Strategien aus, um nur bestimmte zu vergleichen."
+    )
+
+    col_sel, col_btn = st.columns([5, 1])
+
+    with col_sel:
+        selection = st.multiselect(
+            "Sichtbare Strategien",
+            options=all_names,
+            key="portfolio_selected",
+            label_visibility="collapsed",
+        )
+
+        with col_btn:
+         st.write("")
+         st.button(
+            "Alle zeigen",
+            use_container_width=True,
+            on_click=_reset_portfolio_selection,
+            args=(all_names,),
+        )
+
+    if not selection:
+        st.warning("Mindestens eine Strategie muss sichtbar sein.")
+        st.stop()
+
+    # Filter anwenden
+    strategies = {k: v for k, v in strategies.items() if k in selection}
+
     st.success(
-        f"{len(strategies)} Strategie(n) aktiv: "
+        f"{len(strategies)} von {len(all_names)} Strategie(n) sichtbar: "
         + ", ".join(list(strategies.keys())[:5])
         + ("…" if len(strategies) > 5 else "")
     )
