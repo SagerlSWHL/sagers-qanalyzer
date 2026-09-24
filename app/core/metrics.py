@@ -141,3 +141,21 @@ def max_drawdown(df: pd.DataFrame) -> float:
     drawdown = equity - running_max
 
     return float(drawdown.min())
+
+
+
+# =========================================================
+# DRAWDOWN-SERIE (für Chart)
+# =========================================================
+
+def drawdown_series(df: pd.DataFrame) -> pd.Series:
+    """
+    Gibt die komplette Drawdown-Kurve in Prozentpunkten zurück.
+
+    Für jeden Punkt der Equity-Kurve:
+        drawdown = equity - bisheriges Maximum
+    """
+
+    equity = df[COL_EQUITY]
+    running_max = equity.cummax()
+    return equity - running_max

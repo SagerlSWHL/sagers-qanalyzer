@@ -150,10 +150,15 @@ def show_analyzer():
     # TABS
     # -----------------------------------------------------
 
-    tab_chart, tab_trades = st.tabs(["Equity Curve", "Trades"])
+    tab_equity, tab_dd, tab_trades = st.tabs(
+    ["Equity Curve", "Drawdown", "Trades"]
+    )
 
-    with tab_chart:
+    with tab_equity:
         _show_equity_chart(trades)
+
+    with tab_dd:
+        _show_drawdown_chart(trades)
 
     with tab_trades:
         _show_trades_table(trades)
@@ -183,6 +188,32 @@ def _show_equity_chart(trades: pd.DataFrame):
     else:
         chart_data = trades[["Kumulierter G&V %"]].copy()
 
+    st.line_chart(chart_data)
+
+
+
+def _show_drawdown_chart(trades: pd.DataFrame):
+    """
+    Zeichnet die Drawdown-Kurve (Rückgang vom bisherigen Höchststand).
+    """
+
+    st.subheader("Drawdown")
+
+    if "Kumulierter G&V %" not in trades.columns:
+        st.info("Keine Equity-Daten gefunden.")
+        return
+
+    from core.metrics import drawdown_series
+
+    dd = drawdown_series(trades)
+
+    if "Datum und Uhrzeit" in trades.columns:
+        chart_data = dd.copy()
+        chart_data.index = trades["Datum und Uhrzeit"]
+    else:
+        chart_data = dd
+
+    chart_data.name = "Drawdown %"
     st.line_chart(chart_data)
 
 
