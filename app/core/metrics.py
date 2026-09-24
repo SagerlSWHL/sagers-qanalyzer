@@ -159,3 +159,56 @@ def drawdown_series(df: pd.DataFrame) -> pd.Series:
     equity = df[COL_EQUITY]
     running_max = equity.cummax()
     return equity - running_max
+
+
+
+# =========================================================
+# MONATSRENDITEN (für Heatmap)
+# =========================================================
+
+def monthly_returns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Berechnet die Monatsrendite in % pro Jahr/Monat.
+
+    Vorgehen:
+    1. Kumulierte Equity in eine Zeitreihe umwandeln
+    2. Pro Monat: den letzten kumulierten Wert nehmen
+    3. Differenz zum Vormonat = Monatsrendite
+
+    Rückgabe: DataFrame mit Jahren als Zeilen, Monaten als Spalten,
+    Werte = Rendite in %.
+    """
+
+    # Brauchen Datum und kumulierte Equity
+    if "Datum und Uhrzeit" not in df.columns:
+        return pd.DataFrame()
+
+    series = df[["Datum und Uhrzeit", COL_EQUITY]].copy()
+    series = series.set_index("Datum und Uhrzeit")
+    series.index = pd.to_datetime(series.index)
+    series = series.sort_index()
+
+    # Kumulierter Wert am Ende jedes Monats
+    monthly_end = series[COL_EQUITY].resample("ME").last()
+
+    # Differenz zum Vormonat (Monatsänderung in Prozentpunkten)
+    monthly_diff = monthly_end.diff()
+
+    # Erster Monat: Wert selbst (Startwert war 0)
+    monthly_diff.iloc[0] = monthly_end.iloc[0]
+
+    # In ein Jahr × Monat Raster umformen
+    result = pd.DataFrame({
+        "Year": monthly_diff.index.year,
+        "Month": monthly_diff.index.month,
+        "Return": monthly_diff.values,
+    })
+
+    pivot = result.pivot(index="Year", columns="Month", values="Return")
+
+    # Monate als Namen
+    month_names = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+                   "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+    pivot.columns = [month_names[m - 1] for m in pivot.columns]
+
+    return pivot

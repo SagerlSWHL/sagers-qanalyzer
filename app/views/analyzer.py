@@ -8,6 +8,7 @@ lädt die Trades, berechnet alle Kennzahlen und zeigt sie an.
 """
 
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from core.data_loader import load_trades, load_trading_data
@@ -150,8 +151,8 @@ def show_analyzer():
     # TABS
     # -----------------------------------------------------
 
-    tab_equity, tab_dd, tab_trades = st.tabs(
-    ["Equity Curve", "Drawdown", "Trades"]
+    tab_equity, tab_dd, tab_monthly, tab_trades = st.tabs(
+    ["Equity Curve", "Drawdown", "Monthly", "Trades"]
     )
 
     with tab_equity:
@@ -159,6 +160,9 @@ def show_analyzer():
 
     with tab_dd:
         _show_drawdown_chart(trades)
+
+    with tab_monthly:
+        _show_monthly_heatmap(trades)
 
     with tab_trades:
         _show_trades_table(trades)
@@ -233,3 +237,70 @@ def _show_trades_table(trades: pd.DataFrame):
         use_container_width=True,
         hide_index=True,
     )
+
+
+
+# =========================================================
+# MONTHLY HEATMAP
+# =========================================================
+
+def _show_monthly_heatmap(trades: pd.DataFrame):
+    """
+    Zeigt die Monatsrenditen als farbige Heatmap.
+    Grün = positiv, Rot = negativ.
+    """
+
+    st.subheader("Monthly Returns")
+
+    from core.metrics import monthly_returns
+
+    pivot = monthly_returns(trades)
+
+    if pivot is None or pivot.empty:
+        st.info("Keine Monatsdaten gefunden.")
+        return
+
+    # Zellen-Beschriftung (mit Vorzeichen, 2 Nachkommastellen)
+    text = pivot.map(
+        lambda v: f"{v:+.2f}" if pd.notna(v) else ""
+    )
+
+    # Farbskala symmetrisch um 0
+    max_abs = float(pivot.abs().max().max())
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=pivot.values,
+            x=pivot.columns,
+            y=pivot.index.astype(str),
+            text=text.values,
+            texttemplate="%{text}",
+            textfont={"size": 11},
+            colorscale=[
+                [0.0, "#8B0000"],   # stark rot
+                [0.5, "#1a1a1a"],   # neutral dunkel
+                [1.0, "#0F8B3C"],   # stark grün
+            ],
+            zmid=0,
+            zmin=-max_abs,
+            zmax=max_abs,
+            showscale=True,
+            hoverongaps=False,
+            colorbar=dict(
+                title="%",
+                ticksuffix="%",
+            ),
+        )
+    )
+
+    fig.update_layout(
+        height=420,
+        margin=dict(l=60, r=20, t=20, b=40),
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        font=dict(color="#e6e6e6"),
+        xaxis=dict(side="top"),
+        yaxis=dict(autorange="reversed"),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
