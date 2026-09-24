@@ -62,6 +62,24 @@ def _reset_portfolio_selection(all_names):
     """
     st.session_state["portfolio_selected"] = list(all_names)
 
+def _select_all_strategies(names):
+    """
+    Callback: wählt alle Strategien aus – setzt sowohl die Auswahl-Liste
+    als auch alle Checkbox-States.
+    """
+    st.session_state["portfolio_selected"] = list(names)
+    for n in names:
+        st.session_state[f"chk_{n}"] = True
+
+
+def _deselect_all_strategies(names):
+    """
+    Callback: wählt alle Strategien ab.
+    """
+    st.session_state["portfolio_selected"] = []
+    for n in names:
+        st.session_state[f"chk_{n}"] = False
+
 
 # =========================================================
 # HAUPTFUNKTION
@@ -149,6 +167,9 @@ def show_portfolio():
     if st.session_state.get(state_key) != current_set:
         st.session_state["portfolio_selected"] = all_names
         st.session_state[state_key] = current_set
+        # Checkbox-States initialisieren
+        for n in all_names:
+            st.session_state[f"chk_{n}"] = True
 
         st.subheader("Strategie-Auswahl")
 
@@ -167,14 +188,20 @@ def show_portfolio():
         col_sel_all, col_sel_none = st.columns(2)
 
         with col_sel_all:
-            if st.button("Alles anwählen", use_container_width=True):
-                st.session_state["portfolio_selected"] = all_names
-                st.rerun()
+            st.button(
+                "Alles anwählen",
+                use_container_width=True,
+                on_click=_select_all_strategies,
+                args=(all_names,),
+            )
 
         with col_sel_none:
-            if st.button("Alles abwählen", use_container_width=True):
-                st.session_state["portfolio_selected"] = []
-                st.rerun()
+            st.button(
+                "Alles abwählen",
+                use_container_width=True,
+                on_click=_deselect_all_strategies,
+                args=(all_names,),
+            )
 
         # Checkboxen in 4 Spalten
         n_cols = 4
@@ -183,10 +210,8 @@ def show_portfolio():
 
         for i, name in enumerate(profit_sorted):
             with cols[i % n_cols]:
-                is_on = name in selection
                 new_val = st.checkbox(
                     name,
-                    value=is_on,
                     key=f"chk_{name}",
                 )
 
