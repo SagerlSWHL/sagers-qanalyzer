@@ -1,0 +1,37 @@
+# ─── Python ───────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ─── Virtual Environment ──────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Streamlit Secrets ────────────────────
+.streamlit/secrets.toml
+
+# ─── Daten (bleiben lokal!) ───────────────
+data/imports/*
+data/processed/*
+!data/imports/.gitkeep
+!data/processed/.gitkeep
+
+# ─── Excel / CSV ──────────────────────────
+*.xlsx
+*.xls
+*.csv
+
+# ─── IDE ──────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ─── OS ───────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Jupyter ──────────────────────────────
+.ipynb_checkpoints/
