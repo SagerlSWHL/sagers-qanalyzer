@@ -150,29 +150,54 @@ def show_portfolio():
         st.session_state["portfolio_selected"] = all_names
         st.session_state[state_key] = current_set
 
-    st.subheader("Strategie-Auswahl")
-    st.caption(
-        "Blende einzelne Strategien aus, um nur bestimmte zu vergleichen."
+        st.subheader("Strategie-Auswahl")
+
+    # Sortiert nach Net Profit (für spätere Verwendung)
+    profit_sorted = sorted(
+        all_names,
+        key=lambda n: -float(strategies[n]["Netto G&V USD"].sum()),
     )
 
-    col_sel, col_btn = st.columns([5, 1])
+    # -----------------------------------------------------
+    # MANUELLE AUSWAHL (aufklappbar)
+    # -----------------------------------------------------
 
-    with col_sel:
-        selection = st.multiselect(
-            "Sichtbare Strategien",
-            options=all_names,
-            key="portfolio_selected",
-            label_visibility="collapsed",
-        )
+    with st.expander("🔧 Strategien auswählen", expanded=True):
 
-        with col_btn:
-         st.write("")
-         st.button(
-            "Alle zeigen",
-            use_container_width=True,
-            on_click=_reset_portfolio_selection,
-            args=(all_names,),
-        )
+        col_sel_all, col_sel_none = st.columns(2)
+
+        with col_sel_all:
+            if st.button("Alles anwählen", use_container_width=True):
+                st.session_state["portfolio_selected"] = all_names
+                st.rerun()
+
+        with col_sel_none:
+            if st.button("Alles abwählen", use_container_width=True):
+                st.session_state["portfolio_selected"] = []
+                st.rerun()
+
+        # Checkboxen in 4 Spalten
+        n_cols = 4
+        cols = st.columns(n_cols)
+        selection = list(st.session_state.get("portfolio_selected", []))
+
+        for i, name in enumerate(profit_sorted):
+            with cols[i % n_cols]:
+                is_on = name in selection
+                new_val = st.checkbox(
+                    name,
+                    value=is_on,
+                    key=f"chk_{name}",
+                )
+
+                if new_val and name not in selection:
+                    selection.append(name)
+                elif not new_val and name in selection:
+                    selection.remove(name)
+
+        st.session_state["portfolio_selected"] = selection
+
+    selection = st.session_state.get("portfolio_selected", [])
 
     if not selection:
         st.warning("Mindestens eine Strategie muss sichtbar sein.")
