@@ -151,8 +151,8 @@ def show_analyzer():
     # TABS
     # -----------------------------------------------------
 
-    tab_equity, tab_dd, tab_monthly, tab_trades = st.tabs(
-    ["Equity Curve", "Drawdown", "Monthly", "Trades"]
+    tab_equity, tab_dd, tab_monthly, tab_dist, tab_trades = st.tabs(
+    ["Equity Curve", "Drawdown", "Monthly", "Distribution", "Trades"]
     )
 
     with tab_equity:
@@ -163,6 +163,9 @@ def show_analyzer():
 
     with tab_monthly:
         _show_monthly_heatmap(trades)
+
+    with tab_dist:
+        _show_trade_distribution(trades)
 
     with tab_trades:
         _show_trades_table(trades)
@@ -304,3 +307,75 @@ def _show_monthly_heatmap(trades: pd.DataFrame):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+
+# =========================================================
+# TRADE DISTRIBUTION (Histogramm)
+# =========================================================
+
+def _show_trade_distribution(trades: pd.DataFrame):
+    """
+    Histogramm der P&L-Werte pro Trade.
+    """
+
+    st.subheader("Trade Distribution")
+
+    if "Netto G&V USD" not in trades.columns:
+        st.info("Keine P&L-Daten gefunden.")
+        return
+
+    pnl = trades["Netto G&V USD"]
+
+    fig = go.Figure()
+
+    # Positive und negative Trades getrennt einfärben
+    fig.add_trace(
+        go.Histogram(
+            x=pnl[pnl < 0],
+            name="Verlierer",
+            marker_color="#EF4444",
+            opacity=0.85,
+        )
+    )
+
+    fig.add_trace(
+        go.Histogram(
+            x=pnl[pnl >= 0],
+            name="Gewinner",
+            marker_color="#22C55E",
+            opacity=0.85,
+        )
+    )
+
+    fig.update_layout(
+        barmode="overlay",
+        height=420,
+        margin=dict(l=60, r=20, t=30, b=40),
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        font=dict(color="#e6e6e6"),
+        xaxis=dict(title="P&L (USD)", gridcolor="#333"),
+        yaxis=dict(title="Anzahl Trades", gridcolor="#333"),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Kleine Statistik-Zeile darunter
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric("Bester Trade", f"${pnl.max():,.2f}")
+    with col2:
+        st.metric("Schlechtester Trade", f"${pnl.min():,.2f}")
+    with col3:
+        st.metric("Median", f"${pnl.median():,.2f}")
+    with col4:
+        st.metric("Std-Abweichung", f"${pnl.std():,.2f}")
