@@ -1,0 +1,143 @@
+"""
+metrics.py
+----------
+Einzelne Kennzahlen für Trading-Analysen.
+
+Jede Funktion ist "pure": sie bekommt einen DataFrame (oder eine Serie)
+und gibt einen einzelnen Wert zurück. Keine Seiteneffekte.
+
+Alle Funktionen erwarten als Eingabe den Trade-Level-DataFrame
+(also den Output von load_trades()), mit den Spalten:
+    - 'Netto G&V USD'   → P&L pro Trade in USD
+    - 'Kumulierter G&V %' → kumulierter Return (Equity-Kurve in %)
+"""
+
+import numpy as np
+import pandas as pd
+
+
+# =========================================================
+# KONSTANTEN (Spaltennamen)
+# =========================================================
+
+COL_PNL = "Netto G&V USD"
+COL_EQUITY = "Kumulierter G&V %"
+
+
+# =========================================================
+# GEWINN / VERLUST BASIS
+# =========================================================
+
+def net_profit(df: pd.DataFrame) -> float:
+    """Summe aller P&L (Netto-Gewinn in USD)."""
+    return float(df[COL_PNL].sum())
+
+
+def gross_profit(df: pd.DataFrame) -> float:
+    """Summe aller positiven P&L."""
+    return float(df.loc[df[COL_PNL] > 0, COL_PNL].sum())
+
+
+def gross_loss(df: pd.DataFrame) -> float:
+    """Summe aller negativen P&L (als positiver Betrag)."""
+    return float(-df.loc[df[COL_PNL] < 0, COL_PNL].sum())
+
+
+# =========================================================
+# TRADE-ANZAHLEN
+# =========================================================
+
+def total_trades(df: pd.DataFrame) -> int:
+    """Anzahl aller Trades."""
+    return int(len(df))
+
+
+def winning_trades(df: pd.DataFrame) -> int:
+    """Anzahl Gewinner."""
+    return int((df[COL_PNL] > 0).sum())
+
+
+def losing_trades(df: pd.DataFrame) -> int:
+    """Anzahl Verlierer."""
+    return int((df[COL_PNL] < 0).sum())
+
+
+def breakeven_trades(df: pd.DataFrame) -> int:
+    """Anzahl Trades mit P&L == 0."""
+    return int((df[COL_PNL] == 0).sum())
+
+
+# =========================================================
+# RATEN & VERHÄLTNISSE
+# =========================================================
+
+def win_rate(df: pd.DataFrame) -> float:
+    """Anteil Gewinner an allen Trades (in %)."""
+    total = total_trades(df)
+    if total == 0:
+        return 0.0
+    return 100.0 * winning_trades(df) / total
+
+
+def profit_factor(df: pd.DataFrame) -> float:
+    """
+    Bruttogewinn / Bruttoverlust.
+    > 1 bedeutet profitabel, < 1 unprofitabel.
+    """
+    gl = gross_loss(df)
+    if gl == 0:
+        return float("inf") if gross_profit(df) > 0 else 0.0
+    return gross_profit(df) / gl
+
+
+def avg_win(df: pd.DataFrame) -> float:
+    """Durchschnittlicher Gewinn pro Gewinner-Trade."""
+    winners = df.loc[df[COL_PNL] > 0, COL_PNL]
+    if winners.empty:
+        return 0.0
+    return float(winners.mean())
+
+
+def avg_loss(df: pd.DataFrame) -> float:
+    """Durchschnittlicher Verlust pro Verlierer-Trade (als positiver Betrag)."""
+    losers = df.loc[df[COL_PNL] < 0, COL_PNL]
+    if losers.empty:
+        return 0.0
+    return float(-losers.mean())
+
+
+def expectancy(df: pd.DataFrame) -> float:
+    """
+    Erwartungswert pro Trade:
+    (WinRate * AvgWin) - (LossRate * AvgLoss)
+    """
+    total = total_trades(df)
+    if total == 0:
+        return 0.0
+
+    wr = winning_trades(df) / total
+    lr = losing_trades(df) / total
+    return (wr * avg_win(df)) - (lr * avg_loss(df))
+
+
+# =========================================================
+# DRAWDOWN
+# =========================================================
+
+def max_drawdown(df: pd.DataFrame) -> float:
+    """
+    Maximaler Drawdown der Equity-Kurve in Prozentpunkten.
+
+    Die Equity-Kurve ist 'Kumulierter G&V %'.
+    Wir berechnen den größten Rückgang vom jeweils vorherigen Höchststand.
+    """
+
+    equity = df[COL_EQUITY]
+
+    # Bisheriges Maximum (kumulativ)
+    running_max = equity.cummax()
+
+    # Drawdown = aktueller Wert minus bisheriges Maximum
+    drawdown = equity - running_max
+
+    return float(drawdown.min())
