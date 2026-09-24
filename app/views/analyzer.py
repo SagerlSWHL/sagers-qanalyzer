@@ -90,7 +90,7 @@ def show_analyzer():
     with col_sample:
         st.write("")
         st.write("")
-        if st.button("🎲  Beispiel", use_container_width=True):
+        if st.button("🎲  Beispiel", width="stretch"):
             st.session_state["use_synthetic"] = True
 
     # -----------------------------------------------------
@@ -270,7 +270,7 @@ def _show_trades_table(trades: pd.DataFrame):
 
     st.dataframe(
         trades,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -336,7 +336,7 @@ def _show_monthly_heatmap(trades: pd.DataFrame):
         yaxis=dict(autorange="reversed"),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # =========================================================
@@ -387,7 +387,7 @@ def _show_trade_distribution(trades: pd.DataFrame):
         showlegend=False,
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     col1, col2, col3, col4 = st.columns(4)
 

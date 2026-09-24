@@ -119,7 +119,7 @@ def show_portfolio():
             index=2,  # Default: 10
         )
 
-        if st.button("🎲  Demo-Strategien laden", use_container_width=True):
+        if st.button("🎲  Demo-Strategien laden", width="stretch"):
             st.session_state["use_synthetic_portfolio"] = True
             st.session_state["n_synthetic"] = n_demo
 
@@ -190,7 +190,7 @@ def show_portfolio():
         with col_sel_all:
             st.button(
                 "Alles anwählen",
-                use_container_width=True,
+                width="stretch",
                 on_click=_select_all_strategies,
                 args=(all_names,),
             )
@@ -198,7 +198,7 @@ def show_portfolio():
         with col_sel_none:
             st.button(
                 "Alles abwählen",
-                use_container_width=True,
+                width="stretch",
                 on_click=_deselect_all_strategies,
                 args=(all_names,),
             )
@@ -294,7 +294,7 @@ def show_portfolio():
     comparison = pd.DataFrame(rows)
     comparison = comparison.sort_values("Net Profit", ascending=False)
 
-    st.dataframe(comparison, use_container_width=True, hide_index=True)
+    st.dataframe(comparison, width="stretch", hide_index=True)
 
     st.divider()
 
@@ -371,7 +371,7 @@ def _show_combined_equity(combined: pd.Series):
         yaxis=dict(title="Return %", gridcolor="#333"),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # =========================================================
@@ -422,7 +422,7 @@ def _show_individual_equity(strategies: dict):
         ),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 # =========================================================
@@ -495,7 +495,7 @@ def _show_correlation(strategies: dict):
         yaxis=dict(autorange="reversed"),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.caption(
         f"Berechnung auf {selected.lower()}er Basis. "
@@ -587,7 +587,7 @@ def _show_weighted_equity(strategies: dict):
         yaxis=dict(title="Return %", gridcolor="#333"),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     col1, col2, col3 = st.columns(3)
 
@@ -656,4 +656,4 @@ def _show_rolling_performance(strategies: dict):
         yaxis=dict(title="Rendite (3 Mon.) %", gridcolor="#333"),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
