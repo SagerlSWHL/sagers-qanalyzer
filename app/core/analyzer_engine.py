@@ -10,7 +10,7 @@ Ausgabe: dict mit allen relevanten Kennzahlen
 
 import pandas as pd
 
-from app.core import metrics
+from core import metrics
 
 
 # =========================================================
