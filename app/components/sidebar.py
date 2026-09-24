@@ -1,3 +1,9 @@
+"""
+sidebar.py
+----------
+Erzeugt die Sidebar-Navigation des Sagers qAnalyzer.
+"""
+
 import streamlit as st
 
 
@@ -5,10 +11,6 @@ def show_sidebar():
     """
     Erstellt die Sidebar des Sagers qAnalyzer.
     """
-
-    # ---------------------------------------------------------
-    # SIDEBAR
-    # ---------------------------------------------------------
 
     with st.sidebar:
 
@@ -19,40 +21,42 @@ def show_sidebar():
         st.html(
             """
             <div style="
-                margin-bottom: 30px;
-                padding-top: 5px;
+                margin-bottom: 32px;
+                padding-top: 8px;
+                text-align: center;
             ">
 
                 <div style="
-                    font-size: 26px;
+                    font-size: 34px;
                     font-weight: 700;
-                    letter-spacing: 1px;
+                    letter-spacing: 1.5px;
                     line-height: 1.1;
                 ">
                     Sagers
                 </div>
 
                 <div style="
-                    font-size: 17px;
+                    font-size: 22px;
                     font-weight: 500;
                     color: #8b8b8b;
-                    letter-spacing: 1px;
+                    letter-spacing: 1.5px;
                     line-height: 1.2;
+                    margin-top: 2px;
                 ">
                     qAnalyzer
                 </div>
 
                 <div style="
-                    margin-top: 16px;
-                    margin-bottom: 10px;
+                    margin: 18px auto 12px auto;
+                    width: 70%;
                     height: 1px;
                     background-color: #333333;
                 "></div>
 
                 <div style="
-                    font-size: 11px;
+                    font-size: 12px;
                     color: #777777;
-                    letter-spacing: 2px;
+                    letter-spacing: 3px;
                 ">
                     SAGERS QUANT
                 </div>
