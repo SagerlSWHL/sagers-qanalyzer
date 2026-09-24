@@ -83,3 +83,114 @@ def load_trading_data(source: Union[str, Path, IO]) -> pd.DataFrame:
         f"Nicht unterstütztes Dateiformat: '{extension}'. "
         f"Erlaubt: {CSV_EXTENSIONS | EXCEL_EXTENSIONS}"
     )
+
+
+# =========================================================
+# SHEET-NAMEN (Quantitativo/TradingView Excel)
+# =========================================================
+
+SHEET_TRADES = "Handelsgeschäfte"
+SHEET_PERFORMANCE = "Performance"
+SHEET_PROPERTIES = "Eigenschaften"
+SHEET_ANALYSIS = "Analyse der Trades"
+SHEET_RISK = "Risikogewichtete Performance"
+
+
+# =========================================================
+# TRADES LADEN (nur Ausstiegs-Zeilen mit finalem P&L)
+# =========================================================
+
+def load_trades(source: Union[str, Path, IO]) -> pd.DataFrame:
+    """
+    Lädt die einzelnen Trades aus dem Sheet 'Handelsgeschäfte'.
+
+    Jeder Trade erscheint im Sheet zweimal:
+      - Einstiegs-Zeile (Typ: 'Long-Einstieg' / 'Short-Einstieg')
+      - Ausstiegs-Zeile (Typ: 'Long-Ausstieg' / 'Short-Ausstieg')
+
+    Nur die **Ausstiegs-Zeilen** enthalten den finalen P&L –
+    diese Funktion gibt ausschließlich die Ausstiegs-Zeilen zurück.
+    """
+
+    df = pd.read_excel(source, sheet_name=SHEET_TRADES)
+
+    # Nur Ausstiegs-Zeilen behalten
+    exit_mask = df["Typ"].str.contains("Ausstieg", na=False)
+    df = df[exit_mask].copy()
+
+    # Nach Trade-Nummer sortieren
+    df = df.sort_values("Trade-Nummer").reset_index(drop=True)
+
+    return df
+
+
+# =========================================================
+# PERFORMANCE LADEN (Kennzahlen-Tabelle)
+# =========================================================
+
+def load_performance(source: Union[str, Path, IO]) -> pd.DataFrame:
+    """
+    Lädt das Sheet 'Performance' mit den Kennzahlen.
+
+    Spalte A enthält den Namen der Kennzahl, die weiteren
+    Spalten die Werte (Alle USD, Alle %, Long USD, ...).
+    """
+
+    df = pd.read_excel(source, sheet_name=SHEET_PERFORMANCE)
+
+    # Erste Spalte als Index setzen (Kennzahl-Name)
+    first_col = df.columns[0]
+    df = df.set_index(first_col)
+    df.index.name = "Kennzahl"
+
+    return df
+
+
+# =========================================================
+# PROPERTIES LADEN (Backtest-Einstellungen)
+# =========================================================
+
+def load_properties(source: Union[str, Path, IO]) -> pd.DataFrame:
+    """
+    Lädt das Sheet 'Eigenschaften' mit den Backtest-Einstellungen.
+    """
+
+    df = pd.read_excel(source, sheet_name=SHEET_PROPERTIES)
+    return df
+
+
+# =========================================================
+# ANALYSE-TRADES LADEN
+# =========================================================
+
+def load_trade_analysis(source: Union[str, Path, IO]) -> pd.DataFrame:
+    """
+    Lädt das Sheet 'Analyse der Trades' (Win Rate, Avg Win/Loss, ...).
+    """
+
+    df = pd.read_excel(source, sheet_name=SHEET_ANALYSIS)
+
+    first_col = df.columns[0]
+    df = df.set_index(first_col)
+    df.index.name = "Kennzahl"
+
+    return df
+
+
+# =========================================================
+# RISIKO-KENNZAHLEN LADEN
+# =========================================================
+
+def load_risk_metrics(source: Union[str, Path, IO]) -> pd.DataFrame:
+    """
+    Lädt das Sheet 'Risikogewichtete Performance'
+    (Sharpe, Sortino, Profit Factor, Margin Calls).
+    """
+
+    df = pd.read_excel(source, sheet_name=SHEET_RISK)
+
+    first_col = df.columns[0]
+    df = df.set_index(first_col)
+    df.index.name = "Kennzahl"
+
+    return df
