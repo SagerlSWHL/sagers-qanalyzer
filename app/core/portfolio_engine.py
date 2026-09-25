@@ -225,3 +225,116 @@ def combine_equity_weighted(strategies: dict, weights: dict) -> pd.Series:
     combined.name = "Portfolio (gewichtet) %"
 
     return combined
+
+
+
+# =========================================================
+# ASSET-SYMBOL AUS STRATEGIE-NAMEN EXTRAHIEREN
+# =========================================================
+
+# Börsen-Präfixe, die wir ignorieren
+_EXCHANGE_PREFIXES = {
+    "NASDAQ", "NYSE", "AMEX", "BATS", "ARCA", "CBOE", "TSX", "LSE",
+    "XETRA", "FWB", "EURONEXT", "TSE", "HKEX",
+}
+
+
+def extract_symbol(strategy_name: str) -> str:
+    """
+    Versucht, aus einem Strategie-Namen ein Ticker-Symbol zu extrahieren.
+
+    Beispiel:
+        "TurnTue_NASDAQ_QQQ_2026-09-24"          → "QQQ"
+        "TLT_Season_NASDAQ_TLT_2026-09-24"       → "TLT"
+        "SPY_RSI_Long-Only_BATS_SPY_2026-09-24"  → "SPY"
+
+    Fallback: der Strategie-Name selbst, falls nichts erkannt wird.
+    """
+
+    import re
+
+    tokens = re.split(r"[_\-\s]+", strategy_name)
+
+    candidates = [
+        t for t in tokens
+        if 2 <= len(t) <= 5
+        and t.isalpha()
+        and t.isupper()
+        and t not in _EXCHANGE_PREFIXES
+    ]
+
+    if not candidates:
+        return strategy_name
+
+    return candidates[-1]
+
+
+# =========================================================
+# ASSET-KORRELATION (Preise der gehandelten Assets)
+# =========================================================
+
+def asset_correlation_matrix(strategies: dict, period: str = "2y") -> pd.DataFrame:
+    """
+    Korrelation der täglichen Renditen der gehandelten Assets.
+
+    Beispiel: QQQ-Preis vs. TLT-Preis.
+
+    Parameter
+    ---------
+    strategies : dict
+        { "Strategie A": DataFrame, ... }
+    period : str
+        Zeitraum für yfinance: "1y", "2y", "5y", "max"
+
+    Rückgabe
+    --------
+    pd.DataFrame : Korrelationsmatrix der Assets, oder leeres DF wenn
+                   weniger als 2 Assets erkannt wurden.
+    """
+
+    import yfinance as yf
+
+    # Symbole aus Strategie-Namen extrahieren
+    symbols = {}
+    for name in strategies.keys():
+        sym = extract_symbol(name)
+        symbols[name] = sym
+
+    unique_symbols = sorted(set(symbols.values()))
+
+    if len(unique_symbols) < 2:
+        return pd.DataFrame()
+
+    # Preisdaten von Yahoo holen
+    try:
+        data = yf.download(
+            unique_symbols,
+            period=period,
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            threads=False,
+        )
+    except Exception:
+        return pd.DataFrame()
+
+    if data is None or data.empty:
+        return pd.DataFrame()
+
+    # 'Close'-Spalte extrahieren
+    if isinstance(data.columns, pd.MultiIndex):
+        prices = data["Close"]
+    else:
+        prices = data[["Close"]]
+
+    # Tägliche Renditen (nicht die Preise selbst!)
+    returns = prices.pct_change().dropna()
+
+    if returns.empty or returns.shape[1] < 2:
+        return pd.DataFrame()
+
+    corr = returns.corr()
+    corr.index.name = "Asset"
+    corr.columns.name = "Asset"
+
+    return corr

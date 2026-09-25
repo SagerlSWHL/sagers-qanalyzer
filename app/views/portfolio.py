@@ -14,6 +14,7 @@ import streamlit as st
 from core.analyzer_engine import analyze_trades
 from core.data_loader import load_trades, load_trading_data
 from core.portfolio_engine import (
+    asset_correlation_matrix,
     build_equity_matrix,
     combine_equity,
     combine_equity_weighted,
@@ -299,38 +300,39 @@ def show_portfolio():
     st.divider()
 
     # -----------------------------------------------------
-    # TABS
+    # ANSICHT-WECHSEL (Dropdown statt Tabs)
     # -----------------------------------------------------
 
-    (
-        tab_combined,
-        tab_individual,
-        tab_corr,
-        tab_weights,
-        tab_rolling,
-    ) = st.tabs(
-        [
-            "Portfolio (kombiniert)",
-            "Einzelne Strategien",
-            "Correlation",
-            "Gewichtung",
-            "Rollierende Performance",
-        ]
+    view = st.radio(
+        "Ansicht",
+        options=[
+            "📊 Portfolio (kombiniert)",
+            "📈 Einzelne Strategien",
+            "🔗 Correlation",
+            "⚖️ Gewichtung",
+            "📉 Rollierende Performance",
+        ],
+        index=0,
+        horizontal=True,
+        key="portfolio_view_selector",
+        label_visibility="collapsed",
     )
 
-    with tab_combined:
+    st.divider()
+
+    if view == "📊 Portfolio (kombiniert)":
         _show_combined_equity(combined)
 
-    with tab_individual:
+    elif view == "📈 Einzelne Strategien":
         _show_individual_equity(strategies)
 
-    with tab_corr:
+    elif view == "🔗 Correlation":
         _show_correlation(strategies)
 
-    with tab_weights:
+    elif view == "⚖️ Gewichtung":
         _show_weighted_equity(strategies)
 
-    with tab_rolling:
+    elif view == "📉 Rollierende Performance":
         _show_rolling_performance(strategies)
 
 
@@ -431,37 +433,105 @@ def _show_individual_equity(strategies: dict):
 
 def _show_correlation(strategies: dict):
     """
-    Zeigt die Korrelations-Matrix als Heatmap.
-    Nutzer kann die Zeitbasis wählen (Tag / Woche / Monat).
+    Zeigt zwei Arten von Korrelation:
+      - Return-Korrelation (basierend auf monatlichen Renditen)
+      - Asset-Korrelation (basierend auf Preisen der gehandelten Assets)
     """
 
     st.subheader("Correlation Matrix")
 
-    st.write(
-        "Wie ähnlich laufen die Strategien zueinander? "
-        "Werte nahe 0 = gute Diversifikation."
+    # -----------------------------------------------------
+    # MODUS-WAHL
+    # -----------------------------------------------------
+
+    # Prüfen, ob echte Ticker vorhanden sind
+    # (Demo-Strategien fangen mit "Synth " an → kein Asset-Modus)
+    real_tickers = any(
+        not name.startswith("Synth ") for name in strategies.keys()
     )
 
-    freq_labels = {
-        "Täglich": "D",
-        "Wöchentlich": "W",
-        "Monatlich (empfohlen)": "ME",
-    }
+    if real_tickers:
+        mode = st.radio(
+            "Korrelations-Art:",
+            options=[
+                "📈 Return-Korrelation (Strategien)",
+                "💹 Asset-Korrelation (Märkte)",
+            ],
+            index=0,
+            horizontal=True,
+            key="corr_mode_radio",
+        )
+        is_asset = mode.startswith("💹")
+    else:
+        mode = "📈 Return-Korrelation (Strategien)"
+        is_asset = False
+        st.info(
+            "ℹ️ **Asset-Korrelation nur mit echten Ticker-Namen möglich** "
+            "(z. B. QQQ, SPY, TLT in den Dateinamen). "
+            "Bei Demo-Strategien steht nur die Return-Korrelation zur Verfügung."
+        )
 
-    selected = st.radio(
-        "Zeitbasis:",
-        list(freq_labels.keys()),
-        index=2,
-        horizontal=True,
-    )
+    # -----------------------------------------------------
+    # RETURN-KORRELATION
+    # -----------------------------------------------------
 
-    freq = freq_labels[selected]
+    if not is_asset:
 
-    corr = correlation_matrix(strategies, freq=freq)
+        st.write(
+            "Wie ähnlich laufen die Strategien zueinander? "
+            "Vergleicht die **Monatsänderung der Renditen**."
+        )
 
-    if corr.empty:
-        st.info("Mindestens 2 Strategien nötig.")
-        return
+        freq_labels = {
+            "Täglich": "D",
+            "Wöchentlich": "W",
+            "Monatlich (empfohlen)": "ME",
+        }
+
+        selected_freq = st.radio(
+            "Zeitbasis:",
+            list(freq_labels.keys()),
+            index=2,
+            horizontal=True,
+            key="corr_freq_radio",
+        )
+
+        freq = freq_labels[selected_freq]
+
+        corr = correlation_matrix(strategies, freq=freq)
+        title = "Return"
+
+        if corr.empty:
+            st.info("Mindestens 2 Strategien nötig.")
+            return
+
+    # -----------------------------------------------------
+    # ASSET-KORRELATION
+    # -----------------------------------------------------
+
+    else:
+
+        st.write(
+            "Wie ähnlich laufen die **Preise der gehandelten Assets**? "
+            "Vergleicht die täglichen Kursänderungen."
+        )
+
+        with st.spinner("Lade Preisdaten von Yahoo Finance…"):
+            corr = asset_correlation_matrix(strategies, period="2y")
+
+        title = "Asset"
+
+        if corr.empty:
+            st.warning(
+                "Konnte keine Asset-Preise laden. "
+                "Prüfe, ob die Symbole in den Dateinamen erkennbar sind "
+                "(z. B. QQQ, SPY, TLT) und ob Internet verfügbar ist."
+            )
+            return
+
+    # -----------------------------------------------------
+    # HEATMAP ZEICHNEN
+    # -----------------------------------------------------
 
     text = corr.map(lambda v: f"{v:.2f}")
 
@@ -495,13 +565,54 @@ def _show_correlation(strategies: dict):
         yaxis=dict(autorange="reversed"),
     )
 
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
 
-    st.caption(
-        f"Berechnung auf {selected.lower()}er Basis. "
-        "Kurzfristige Zeitbasen enthalten mehr Rauschen, "
-        "langfristige zeigen die echte Beziehung klarer."
-    )
+    if not is_asset:
+        st.caption(
+            f"Return-Korrelation auf {selected_freq.lower()}er Basis."
+        )
+    else:
+        st.caption(
+            "Asset-Korrelation basierend auf täglichen Kursänderungen "
+            "(letzte 2 Jahre, Quelle: Yahoo Finance)."
+        )
+
+    # -----------------------------------------------------
+    # ERKLÄRUNG
+    # -----------------------------------------------------
+
+    with st.expander("ℹ️  Was die Korrelation aussagt – und was nicht"):
+        st.markdown(
+            """
+**Return-Korrelation** (Strategien)
+
+Vergleicht: Wie stark bewegen sich die **Renditen** zweier
+Strategien zeitlich im Gleichschritt?
+
+- **+1,0** = perfekt gleichläufig
+- **0,0** = unabhängig
+- **-1,0** = gegensätzlich
+
+**Asset-Korrelation** (Märkte)
+
+Vergleicht: Wie stark bewegen sich die **Preise** der gehandelten
+Assets (z. B. QQQ vs. TLT) im Gleichschritt?
+
+Zeigt, ob zwei Strategien auf **grundsätzlich verschiedenen Märkten**
+agieren – auch wenn sie unterschiedliche Regeln haben.
+
+**Was die Korrelation NICHT aussagt**
+
+- ❌ **Nichts über Rendite** – eine Strategie kann +200 % machen und trotzdem unkorreliert sein
+- ❌ **Nichts über Risiko** – Korrelation und Volatilität sind verschieden
+- ❌ **Nichts über Kausalität** – nur weil zwei Strategien gleich laufen, beeinflusst die eine nicht die andere
+
+**Praxis-Tipp**
+
+Niedrige Korrelation (< 0,3) → gute Diversifikation.
+Hohe Korrelation (> 0,7) → du hast effektiv **eine** Strategie mit mehrfachem Risiko.
+            """
+        )
 
 
 # =========================================================
