@@ -43,7 +43,36 @@ def _collect_trades() -> pd.DataFrame:
             frames.append(copy)
 
         if frames:
-            return pd.concat(frames, ignore_index=True)
+            combined = pd.concat(frames, ignore_index=True)
+
+            # Chronologisch sortieren (gemischt nach Datum, nicht nach Strategie)
+            if "Datum und Uhrzeit" in combined.columns:
+                combined["_sort_dt"] = pd.to_datetime(
+                    combined["Datum und Uhrzeit"], errors="coerce"
+                )
+                combined = combined.sort_values("_sort_dt").drop(columns=["_sort_dt"])
+
+            combined = combined.reset_index(drop=True)
+
+            # Durchlaufende Trade-Nummer (1, 2, 3, ... über alle Strategien)
+            if "Trade-Nummer" in combined.columns:
+                combined["_Original-Nr"] = combined["Trade-Nummer"]
+                combined["Trade-Nummer"] = range(1, len(combined) + 1)
+
+                # Spaltenreihenfolge: Neue Nr. vorne, Original daneben
+                cols = combined.columns.tolist()
+                cols.remove("Trade-Nummer")
+                cols.remove("_Original-Nr")
+                # _Original-Nr nach "Strategie" einfügen
+                if "Strategie" in cols:
+                    idx = cols.index("Strategie") + 1
+                    cols.insert(idx, "_Original-Nr")
+                else:
+                    cols.insert(0, "_Original-Nr")
+                cols.insert(0, "Trade-Nummer")
+                combined = combined[cols]
+
+            return combined
 
     # Fallback: Einzelstrategie
     trades = get_trades()
