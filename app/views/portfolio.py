@@ -10,7 +10,6 @@ synthetischer Demo-Strategien (1 bis 100).
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from core.state import set_strategies
 
 from core.analyzer_engine import analyze_trades
 from core.data_loader import load_trades, load_trading_data
@@ -24,7 +23,7 @@ from core.portfolio_engine import (
     normalize_symbol,
 )
 from core.synthetic_data import generate_synthetic_strategies
-
+from core.state import get_strategies, set_strategies
 
 # =========================================================
 # HILFSFUNKTIONEN
@@ -127,14 +126,14 @@ def show_portfolio():
             st.session_state["use_synthetic_portfolio"] = True
             st.session_state["n_synthetic"] = n_demo
 
-       # -----------------------------------------------------
+    # -----------------------------------------------------
     # STRATEGIEN ZUSAMMENSTELLEN
     # -----------------------------------------------------
 
     strategies = {}
 
+    # Priorität 1: Frische Uploads
     if uploaded_files:
-        # Uploads gewinnen immer
         st.session_state["use_synthetic_portfolio"] = False
 
         for file in uploaded_files:
@@ -145,6 +144,10 @@ def show_portfolio():
             except Exception as exc:
                 st.warning(f"Konnte '{file.name}' nicht laden: {exc}")
 
+        if strategies:
+            set_strategies(strategies)
+
+    # Priorität 2: Demo-Strategien frisch laden
     elif st.session_state.get("use_synthetic_portfolio"):
         n = st.session_state.get("n_synthetic", 10)
         strategies = generate_synthetic_strategies(n)
@@ -152,8 +155,17 @@ def show_portfolio():
             f"🎲 {n} synthetische Demo-Strategien geladen "
             "(keine echten Daten)."
         )
+        set_strategies(strategies)
 
-    # WICHTIG: Erst hier prüfen, ob wir Strategien haben
+    # Priorität 3: Aus Shared State (beim Zurückkommen auf die Seite)
+    else:
+        strategies = get_strategies()
+        if strategies:
+            st.success(
+                f"✅ {len(strategies)} Strategie(n) aus vorheriger Sitzung geladen. "
+                "Lade neue Dateien hoch, um sie zu ersetzen."
+            )
+
     if not strategies:
         st.info("Noch keine Strategien geladen.")
         return

@@ -8,6 +8,8 @@ from views.overview import show_overview
 from views.analyzer import show_analyzer
 from views.portfolio import show_portfolio
 from views.correlation import show_correlation
+from views.drawdown import show_drawdown
+
 
 
 # ---------------------------------------------------------
@@ -55,6 +57,9 @@ elif st.session_state["page"] == "Portfolio":
 
 elif st.session_state["page"] == "Correlation":
     show_correlation()
+
+elif st.session_state["page"] == "Drawdown":
+    show_drawdown()
 
 else:
 

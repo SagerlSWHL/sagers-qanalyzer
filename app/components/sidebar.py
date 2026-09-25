@@ -79,10 +79,10 @@ def show_sidebar():
         if st.button("📈  Portfolio", width="stretch"):
             st.session_state["page"] = "Portfolio"
 
-        """
+        
         if st.button("📉  Drawdown", width="stretch"):
             st.session_state["page"] = "Drawdown"
-
+        """
         if st.button("💹  Trades", width="stretch"):
             st.session_state["page"] = "Trades"
 

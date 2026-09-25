@@ -212,3 +212,127 @@ def monthly_returns(df: pd.DataFrame) -> pd.DataFrame:
     pivot.columns = [month_names[m - 1] for m in pivot.columns]
 
     return pivot
+
+
+
+# =========================================================
+# DRAWDOWN-STATISTIK (kompakt)
+# =========================================================
+
+def drawdown_stats(df: pd.DataFrame) -> dict:
+    """
+    Liefert die wichtigsten Drawdown-Kennzahlen einer Strategie.
+
+    Rückgabe
+    --------
+    dict mit:
+        max_drawdown         tiefster Rückgang in %
+        avg_drawdown         durchschnittlicher Rückgang (nur negative)
+        current_drawdown     aktueller Rückgang (letzter Wert)
+        longest_underwater   längste Phase unter Wasser (in Trades)
+        current_underwater   aktuelle Phase unter Wasser (in Trades)
+        total_trades         Anzahl Trades
+    """
+
+    equity = df[COL_EQUITY]
+    running_max = equity.cummax()
+    dd = equity - running_max
+
+    max_dd = float(dd.min())
+
+    negatives = dd[dd < 0]
+    avg_dd = float(negatives.mean()) if not negatives.empty else 0.0
+
+    current_dd = float(dd.iloc[-1]) if len(dd) else 0.0
+
+    # Längste und aktuelle „unter Wasser"-Phase
+    underwater = (dd < 0).astype(int).tolist()
+
+    longest = 0
+    current_run = 0
+    for v in underwater:
+        if v:
+            current_run += 1
+            longest = max(longest, current_run)
+        else:
+            current_run = 0
+
+    # Aktuelle Phase (vom Ende rückwärts)
+    current_run = 0
+    for v in reversed(underwater):
+        if v:
+            current_run += 1
+        else:
+            break
+
+    return {
+        "max_drawdown": max_dd,
+        "avg_drawdown": avg_dd,
+        "current_drawdown": current_dd,
+        "longest_underwater": int(longest),
+        "current_underwater": int(current_run),
+        "total_trades": len(df),
+    }
+
+
+
+# =========================================================
+# DRAWDOWN-DAUER (Peak → Trough, wie Quantitativo/Excel)
+# =========================================================
+
+def drawdown_duration_stats(df: pd.DataFrame) -> dict:
+    """
+    Berechnet Drawdown-Dauern nach Excel-Logik (Peak → Trough).
+
+    Eine Drawdown-Phase beginnt beim Peak (letztes Hoch) und endet
+    beim Tiefpunkt (Trough), bevor ein neues Hoch erreicht wird.
+
+    Rückgabe
+    --------
+    dict mit:
+        n_phases       Anzahl Drawdown-Phasen
+        avg_duration   durchschnittliche Dauer (Peak → Trough)
+        max_duration   längste Dauer (Peak → Trough)
+    """
+
+    equity = df[COL_EQUITY].reset_index(drop=True)
+    running_max = equity.cummax()
+    dd = equity - running_max
+
+    durations = []
+    current_peak_idx = 0
+    in_drawdown = False
+    deepest_idx = 0
+    deepest_val = 0.0
+
+    for i in range(len(dd)):
+        val = float(dd.iloc[i])
+
+        if val < 0:
+            if not in_drawdown:
+                in_drawdown = True
+                current_peak_idx = max(i - 1, 0)
+                deepest_idx = i
+                deepest_val = val
+            elif val < deepest_val:
+                deepest_val = val
+                deepest_idx = i
+        else:
+            if in_drawdown:
+                durations.append(deepest_idx - current_peak_idx)
+                in_drawdown = False
+                deepest_idx = 0
+                deepest_val = 0.0
+
+    # Offene Phase am Ende
+    if in_drawdown:
+        durations.append(deepest_idx - current_peak_idx)
+
+    if not durations:
+        return {"n_phases": 0, "avg_duration": 0, "max_duration": 0}
+
+    return {
+        "n_phases": len(durations),
+        "avg_duration": sum(durations) / len(durations),
+        "max_duration": max(durations),
+    }
