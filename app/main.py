@@ -7,6 +7,7 @@ from components.sidebar import show_sidebar
 from views.overview import show_overview
 from views.analyzer import show_analyzer
 from views.portfolio import show_portfolio
+from views.correlation import show_correlation
 
 
 # ---------------------------------------------------------
@@ -52,6 +53,8 @@ elif st.session_state["page"] == "Portfolio":
 
     show_portfolio()
 
+elif st.session_state["page"] == "Correlation":
+    show_correlation()
 
 else:
 

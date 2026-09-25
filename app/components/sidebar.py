@@ -91,10 +91,10 @@ def show_sidebar():
 
         if st.button("📐  Statistics", width="stretch"):
             st.session_state["page"] = "Statistics"
-
+        """
         if st.button("🔗  Correlation", width="stretch"):
             st.session_state["page"] = "Correlation"
-        """
+        
 
         # -----------------------------------------------------
         # RESEARCH

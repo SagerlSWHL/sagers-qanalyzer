@@ -338,3 +338,110 @@ def asset_correlation_matrix(strategies: dict, period: str = "2y") -> pd.DataFra
     corr.columns.name = "Asset"
 
     return corr
+
+
+
+# =========================================================
+# SYMBOL-NORMALISIERUNG (Yahoo Finance Format)
+# =========================================================
+
+# Gängige Währungscodes für Forex-Erkennung
+_CURRENCIES = {
+    "EUR", "USD", "GBP", "JPY", "CHF", "AUD", "CAD", "NZD",
+    "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "MXN", "TRY",
+    "ZAR", "SGD", "HKD", "CNY",
+}
+
+
+def normalize_symbol(symbol: str) -> str:
+    """
+    Bringt ein Nutzer-eingegebenes Symbol ins Yahoo-Finance-Format.
+
+    Beispiele:
+        "EURUSD"    → "EURUSD=X"
+        "eur/usd"   → "EURUSD=X"
+        "AAPL"      → "AAPL"
+        "BTC-USD"   → "BTC-USD"
+        "^GDAXI"    → "^GDAXI"
+    """
+
+    s = symbol.strip().upper().replace("/", "").replace(" ", "")
+
+    if not s:
+        return ""
+
+    # Schon im Yahoo-Format?
+    if "=" in s or "-" in s or s.startswith("^"):
+        return s
+
+    # Forex-Pair? (6 Buchstaben, beide Hälften Währungen)
+    if len(s) == 6 and s.isalpha():
+        base, quote = s[:3], s[3:]
+        if base in _CURRENCIES and quote in _CURRENCIES:
+            return f"{s}=X"
+
+    return s
+
+
+# =========================================================
+# KORRELATION FREI WÄHLBARER SYMBOLE
+# =========================================================
+
+def custom_asset_correlation(symbols: list, period: str = "2y") -> pd.DataFrame:
+    """
+    Korrelation zwischen frei gewählten Symbolen (Yahoo Finance).
+
+    Parameter
+    ---------
+    symbols : list[str]
+        Bereits normalisierte Symbole (z. B. ["EURUSD=X", "AAPL"])
+    period : str
+        "1y", "2y", "5y", "max"
+
+    Rückgabe
+    --------
+    pd.DataFrame : Korrelationsmatrix, oder leeres DF bei Fehler
+    """
+
+    import yfinance as yf
+
+    if not symbols or len(symbols) < 2:
+        return pd.DataFrame()
+
+    try:
+        data = yf.download(
+            symbols,
+            period=period,
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            threads=False,
+        )
+    except Exception:
+        return pd.DataFrame()
+
+    if data is None or data.empty:
+        return pd.DataFrame()
+
+    # Close-Preise extrahieren
+    if isinstance(data.columns, pd.MultiIndex):
+        prices = data["Close"]
+    else:
+        prices = data[["Close"]]
+
+    # Falls Spalten fehlen (Symbol nicht gefunden)
+    valid_cols = [c for c in prices.columns if not prices[c].isna().all()]
+    if len(valid_cols) < 2:
+        return pd.DataFrame()
+
+    prices = prices[valid_cols]
+
+    returns = prices.pct_change().dropna()
+    if returns.empty:
+        return pd.DataFrame()
+
+    corr = returns.corr()
+    corr.index.name = "Symbol"
+    corr.columns.name = "Symbol"
+
+    return corr
