@@ -336,3 +336,88 @@ def drawdown_duration_stats(df: pd.DataFrame) -> dict:
         "avg_duration": sum(durations) / len(durations),
         "max_duration": max(durations),
     }
+
+
+
+# =========================================================
+# CAGR (Compound Annual Growth Rate)
+# =========================================================
+
+def cagr(df: pd.DataFrame) -> float:
+    """
+    Jährliche Wachstumsrate in %.
+
+    Annahme: Startkapital = 100 % (entspricht Kumulierter G&V % Basis).
+    """
+
+    if "Datum und Uhrzeit" not in df.columns:
+        return 0.0
+
+    equity = df[COL_EQUITY]
+    dates = pd.to_datetime(df["Datum und Uhrzeit"], errors="coerce").dropna()
+
+    if dates.empty:
+        return 0.0
+
+    years = (dates.max() - dates.min()).days / 365.25
+
+    if years <= 0:
+        return 0.0
+
+    start = 100.0
+    end = 100.0 + float(equity.iloc[-1])
+
+    if end <= 0:
+        return -100.0
+
+    return ((end / start) ** (1.0 / years) - 1.0) * 100.0
+
+
+# =========================================================
+# SHARPE RATIO (per Trade)
+# =========================================================
+
+def sharpe_ratio(df: pd.DataFrame) -> float:
+    """
+    Sharpe Ratio basierend auf Trade-zu-Trade-Änderungen.
+    (Nicht annualisiert – relativ vergleichbar zwischen Strategien.)
+    """
+
+    returns = df[COL_EQUITY].diff().dropna()
+
+    if returns.empty:
+        return 0.0
+
+    std = returns.std()
+
+    if std == 0 or pd.isna(std):
+        return 0.0
+
+    return float(returns.mean() / std)
+
+
+# =========================================================
+# SORTINO RATIO (per Trade)
+# =========================================================
+
+def sortino_ratio(df: pd.DataFrame) -> float:
+    """
+    Sortino Ratio – wie Sharpe, aber nur mit der Downside-Volatilität.
+    """
+
+    returns = df[COL_EQUITY].diff().dropna()
+
+    if returns.empty:
+        return 0.0
+
+    downside = returns[returns < 0]
+
+    if downside.empty:
+        return 0.0
+
+    std = downside.std()
+
+    if std == 0 or pd.isna(std):
+        return 0.0
+
+    return float(returns.mean() / std)

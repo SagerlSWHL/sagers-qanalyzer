@@ -11,6 +11,7 @@ from views.correlation import show_correlation
 from views.drawdown import show_drawdown
 from views.trades import show_trades
 from views.monthly import show_monthly
+from views.statistics import show_statistics
 
 
 # ---------------------------------------------------------
@@ -67,6 +68,9 @@ elif st.session_state["page"] == "Trades":
 
 elif st.session_state["page"] == "Monthly":
     show_monthly()
+
+elif st.session_state["page"] == "Statistics":
+    show_statistics()
 
 else:
 

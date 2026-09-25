@@ -78,7 +78,6 @@ def show_sidebar():
 
         if st.button("📈  Portfolio", width="stretch"):
             st.session_state["page"] = "Portfolio"
-
         
         if st.button("📉  Drawdown", width="stretch"):
             st.session_state["page"] = "Drawdown"
@@ -88,10 +87,10 @@ def show_sidebar():
         
         if st.button("📅  Monthly", width="stretch"):
             st.session_state["page"] = "Monthly"
-        """
+        
         if st.button("📐  Statistics", width="stretch"):
             st.session_state["page"] = "Statistics"
-        """
+        
         if st.button("🔗  Correlation", width="stretch"):
             st.session_state["page"] = "Correlation"
         

@@ -62,6 +62,9 @@ def analyze_trades(df: pd.DataFrame) -> dict:
         "avg_loss": metrics.avg_loss(df),
         "expectancy": metrics.expectancy(df),
         "max_drawdown": metrics.max_drawdown(df),
+        "cagr": metrics.cagr(df),
+        "sharpe_ratio": metrics.sharpe_ratio(df),
+        "sortino_ratio": metrics.sortino_ratio(df),
     }
 
 
@@ -70,10 +73,6 @@ def analyze_trades(df: pd.DataFrame) -> dict:
 # =========================================================
 
 def _empty_result() -> dict:
-    """
-    Gibt ein Ergebnis-Dictionary mit Null-Werten zurück.
-    Nützlich, wenn noch keine Daten geladen wurden.
-    """
     return {
         "net_profit": 0.0,
         "gross_profit": 0.0,
@@ -88,4 +87,7 @@ def _empty_result() -> dict:
         "avg_loss": 0.0,
         "expectancy": 0.0,
         "max_drawdown": 0.0,
+        "cagr": 0.0,
+        "sharpe_ratio": 0.0,
+        "sortino_ratio": 0.0,
     }
