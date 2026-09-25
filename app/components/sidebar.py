@@ -85,10 +85,10 @@ def show_sidebar():
         
         if st.button("💹  Trades", width="stretch"):
             st.session_state["page"] = "Trades"
-        """
+        
         if st.button("📅  Monthly", width="stretch"):
             st.session_state["page"] = "Monthly"
-
+        """
         if st.button("📐  Statistics", width="stretch"):
             st.session_state["page"] = "Statistics"
         """
