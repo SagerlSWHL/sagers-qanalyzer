@@ -12,6 +12,7 @@ from views.drawdown import show_drawdown
 from views.trades import show_trades
 from views.monthly import show_monthly
 from views.statistics import show_statistics
+from views.news import show_news
 
 
 # ---------------------------------------------------------
@@ -71,6 +72,9 @@ elif st.session_state["page"] == "Monthly":
 
 elif st.session_state["page"] == "Statistics":
     show_statistics()
+
+elif st.session_state["page"] == "News":
+    show_news()
 
 else:
 
