@@ -5,6 +5,7 @@ from components.sidebar import show_sidebar
 
 # Seiten importieren
 from views.overview import show_overview
+from views.performance import show_performance
 from views.analyzer import show_analyzer
 from views.portfolio import show_portfolio
 from views.correlation import show_correlation
@@ -17,6 +18,7 @@ from views.backtesting import show_backtesting
 from views.strategien import show_strategien
 from core.auth import is_logged_in, render_login_form
 from views.kalender import show_kalender
+
 
 
 # ---------------------------------------------------------
@@ -61,6 +63,8 @@ if st.session_state["page"] == "Overview":
 
     show_overview()
 
+elif st.session_state["page"] == "Performance":
+    show_performance()
 
 elif st.session_state["page"] == "Analyzer":
 
@@ -96,6 +100,7 @@ elif st.session_state["page"] == "Strategien":
 
 elif st.session_state["page"] == "Kalender":
     show_kalender()
+
 
 else:
 

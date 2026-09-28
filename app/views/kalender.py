@@ -474,15 +474,43 @@ def _trade_form(existing: Optional[dict] = None, default_datum: Optional[str] = 
 
                     if is_new:
                         data["user_id"] = user["id"]
-                        client.table("trades").insert(data).execute()
+                        resp = (
+                            client.table("trades")
+                            .insert(data)
+                            .execute()
+                        )
+                        print(f"[UPDATE] INSERT response: {resp}")
                     else:
-                        client.table("trades").update(data).eq(
-                            "id", existing["id"]
-                        ).execute()
+                        resp = (
+                            client.table("trades")
+                            .update(data)
+                            .eq("id", existing["id"])
+                            .execute()
+                        )
+                        print(f"[UPDATE] UPDATE response: data={resp.data}, count={len(resp.data) if resp.data else 0}")
+                        if not resp.data:
+                            st.error(
+                                "⚠️ Update hat 0 Zeilen geändert. "
+                                "Vermutlich RLS-Block. Kein Fehler geworfen, aber nichts gespeichert."
+                            )
+                            return
 
+                    # Edit-Status zurücksetzen
+                    st.session_state["edit_trade"] = None
                     st.session_state[KEY_NEW_TRADE] = False
                     st.session_state[KEY_SELECTED_TRADE] = None
-                    st.success("Gespeichert!")
+
+                    # Monats-Auto-Gen zurücksetzen (damit neu geladen wird)
+                    year_now = st.session_state.get(KEY_CAL_YEAR)
+                    month_now = st.session_state.get(KEY_CAL_MONTH)
+                    if year_now and month_now:
+                        st.session_state.pop(
+                            f"auto_gen_done_{year_now}_{month_now}", None
+                        )
+
+                    # Flash-Message
+                    st.session_state["flash_message"] = "✅  Trade gespeichert"
+
                     st.rerun()
 
                 except Exception as exc:
@@ -582,6 +610,11 @@ def show_kalender():
 
     st.title("Kalender")
     st.write("Plane und dokumentiere deine Trades.")
+
+    # Flash-Message vom letzten Speichern anzeigen
+    if "flash_message" in st.session_state:
+        st.success(st.session_state.pop("flash_message"))
+
     st.divider()
 
     # ---------- Formular-Anzeige priorisiert ----------
@@ -627,11 +660,16 @@ def show_kalender():
     st.divider()
 
     # ---------- Auto-Generierung ----------
-    with st.spinner("Prüfe Strategien…"):
-        created = generate_auto_trades_for_month(year, month)
+    auto_key = f"auto_gen_done_{year}_{month}"
 
-    if created > 0:
-        st.toast(f"✨ {created} Trade(s) aus Strategien erzeugt", icon="✨")
+    if not st.session_state.get(auto_key):
+        with st.spinner("Prüfe Strategien…"):
+            created = generate_auto_trades_for_month(year, month)
+
+        st.session_state[auto_key] = True
+
+        if created > 0:
+            st.toast(f"✨ {created} Trade(s) aus Strategien erzeugt", icon="✨")
 
     # ---------- Trades laden ----------
     trades = _load_trades_for_month(year, month)
@@ -639,9 +677,10 @@ def show_kalender():
     # ---------- Statistik-Zeile ----------
     if trades:
         n_total = len(trades)
-        n_closed = sum(1 for t in trades if t.get("status") == "geschlossen")
+        closed_trades = [t for t in trades if t.get("status") == "geschlossen"]
+        n_closed = len(closed_trades)
         pnl_total = sum(t.get("pnl") or 0 for t in trades)
-        winners = sum(1 for t in trades if (t.get("pnl") or 0) > 0)
+        winners = sum(1 for t in closed_trades if (t.get("pnl") or 0) > 0)
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Trades im Monat", n_total)

@@ -74,6 +74,9 @@ def show_sidebar():
         if st.button("🏠  Overview", width="stretch"):
             st.session_state["page"] = "Overview"
 
+        if st.button("📈  Performance", width="stretch"):
+            st.session_state["page"] = "Performance"
+
         if st.button("📊  Analyzer", width="stretch"):
             st.session_state["page"] = "Analyzer"
 
