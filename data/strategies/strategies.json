@@ -1,0 +1,71 @@
+[
+  {
+    "id": "b0811455-2d7e-49ff-9404-4546847f91dd",
+    "name": "TurnTue QQQ",
+    "symbol": "NASDAQ:QQQ",
+    "timeframe": "1 Tag",
+    "typ": "Mean Reversion · Wochentag",
+    "beschreibung": "Long-Einstieg Montag, wenn der Kurs mindestens 1 % unter dem Vortagesschluss liegt. Ausstieg am nächsten Tag, wenn der Close über dem Vortageshoch liegt.",
+    "regeln": [
+      "Einstieg: Montag + Close < Vortag − 1 %",
+      "Ausstieg: Close > Vortages-Hoch",
+      "Long only, 100 % Kapital, kein Stop"
+    ],
+    "pine_code": "",
+    "excel_path": "data/strategies/uploads/9cf6bb4c9c19.xlsx",
+    "created_at": "2026-09-28T08:50:23"
+  },
+  {
+    "id": "7518e210-cb19-4bc2-a209-eb8e59a5bd29",
+    "name": "TLT Season",
+    "symbol": "NASDAQ:TLT",
+    "timeframe": "2 Wochen",
+    "typ": "Saisonal",
+    "beschreibung": "Long-Einstieg im letzten Drittel des Monats (ab Kalendertag 15, Handelstag 11). Ausstieg am ersten Handelstag des neuen Monats.",
+    "regeln": [
+      "Einstieg: Kalendertag ≥ 15 und Handelstag ≥ 11",
+      "Ausstieg: erster Handelstag des neuen Monats",
+      "Long only, 100 % Kapital"
+    ],
+    "pine_code": "",
+    "excel_path": "data/imports/TLT_Season_NASDAQ_TLT_2026-09-24.xlsx",
+    "created_at": "2026-09-28T08:50:23"
+  },
+  {
+    "id": "3d92b4b9-eaed-48c8-a12d-b16d90d8d82d",
+    "name": "SPY RSI Long-Only",
+    "symbol": "BATS:SPY",
+    "timeframe": "1 Tag",
+    "typ": "Mean Reversion",
+    "beschreibung": "Long-Einstieg, wenn RSI(3) unter 18 liegt. Ausstieg am nächsten Handelstag zum Close.",
+    "regeln": [
+      "Einstieg: RSI(3) < 18",
+      "Ausstieg: nächster Handelstag zum Close",
+      "Long only, 100 % Kapital"
+    ],
+    "pine_code": "",
+    "excel_path": "data/imports/SPY_RSI_Long-Only_BATS_SPY_2026-09-24.xlsx",
+    "created_at": "2026-09-28T08:50:23"
+  },
+  {
+    "name": "DAX Short DI/FR",
+    "symbol": "DAX",
+    "timeframe": "1 Tag",
+    "typ": "Day of Week",
+    "beschreibung": "",
+    "regeln": [
+      "Dienstag Short (SMA Filter)",
+      "-Preis über SMA 40",
+      "-Preis über RSI 14",
+      "-RSI threshold 50",
+      "Freitag Short (RSI Filter)",
+      "-RSI unter 14",
+      "-RSI Threshold 50",
+      "-SMA Len. 40"
+    ],
+    "pine_code": "/@version=6\nstrategy(\"DAX Tuesday/Friday SMA-RSI Short Strategy + Simple Table\", overlay=true, pyramiding=0, process_orders_on_close=true, calc_on_every_tick=false, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.0, slippage=0, max_labels_count=500)\n\n// TradingView-friendly daily strategy:\n// - Signal is evaluated on the daily close.\n// - Entry is at that daily close.\n// - Exit is at the next available daily close.\n// - Use on the Daily chart.\n// - Alerts are sent via alert() calls:\n//   1) Entry mail\n//   2) Exit-plan mail\n// - Strategy order-fill alerts are disabled to avoid duplicate mails.\n\nshowSignals = input.bool(true, \"Show signal markers\", group=\"Display\")\nshowSmas = input.bool(true, \"Plot enabled SMA filters\", group=\"Display\")\nshowTable = input.bool(true, \"Show simple status table\", group=\"Display\")\n\ntablePositionInput = input.string(\"Top right\", \"Table position\", options=[\"Top right\", \"Top left\", \"Middle right\", \"Middle left\", \"Bottom right\", \"Bottom left\"], group=\"Display\")\ntableTextSizeInput = input.string(\"Small\", \"Table text size\", options=[\"Tiny\", \"Small\", \"Normal\", \"Large\", \"Huge\"], group=\"Display\")\ntableWidth = input.int(12, \"Table cell width\", minval=0, maxval=40, group=\"Display\")\ntableHeight = input.int(3, \"Table cell height\", minval=0, maxval=20, group=\"Display\")\n\nsendAlertEmails = input.bool(true, \"Send entry + exit-plan alert() mails\", group=\"Alerts\")\n\ntuesdayGroup = \"Tuesday Strategy\"\ntuesdayEnabled = input.bool(true, \"Enabled\", group=tuesdayGroup)\ntuesdayFilter = input.string(\"SMA\", \"Filter\", options=[\"SMA\", \"RSI\"], group=tuesdayGroup)\ntuesdayDirection = input.string(\"Above\", \"Condition\", options=[\"Above\", \"Below\"], group=tuesdayGroup)\ntuesdaySmaLen = input.int(40, \"SMA length\", minval=1, group=tuesdayGroup)\ntuesdayRsiLen = input.int(14, \"RSI length\", minval=1, group=tuesdayGroup)\ntuesdayRsiLevel = input.float(50.0, \"RSI threshold\", minval=0.0, maxval=100.0, step=0.1, group=tuesdayGroup)\n\nfridayGroup = \"Friday Strategy\"\nfridayEnabled = input.bool(true, \"Enabled\", group=fridayGroup)\nfridayFilter = input.string(\"RSI\", \"Filter\", options=[\"SMA\", \"RSI\"], group=fridayGroup)\nfridayDirection = input.string(\"Below\", \"Condition\", options=[\"Above\", \"Below\"], group=fridayGroup)\nfridaySmaLen = input.int(40, \"SMA length\", minval=1, group=fridayGroup)\nfridayRsiLen = input.int(14, \"RSI length\", minval=1, group=fridayGroup)\nfridayRsiLevel = input.float(50.0, \"RSI threshold\", minval=0.0, maxval=100.0, step=0.1, group=fridayGroup)\n\nf_filter_condition(string filterType, string direction, float refClose, float refSma, float refRsi, float rsiLevel) =>\n    float lhs = filterType == \"SMA\" ? refClose : refRsi\n    float rhs = filterType == \"SMA\" ? refSma : rsiLevel\n    bool valid = filterType == \"SMA\" ? not na(refClose) and not na(refSma) : not na(refRsi)\n    bool pass = direction == \"Above\" ? lhs > rhs : lhs < rhs\n    valid and pass\n\nf_valid_text(bool enabled, bool filterOk) =>\n    enabled ? filterOk ? \"VALID\" : \"NOT VALID\" : \"OFF\"\n\nf_action_text(string setupName, bool enabled, bool filterOk) =>\n    enabled and filterOk ? setupName + \" Short Day\" : \"No action\"\n\nf_valid_bg(bool enabled, bool filterOk) =>\n    enabled ? filterOk ? color.new(color.green, 20) : color.new(color.gray, 86) : color.new(color.gray, 92)\n\nf_action_bg(bool enabled, bool filterOk) =>\n    enabled and filterOk ? color.new(color.red, 18) : color.new(color.gray, 88)\n\nf_table_position(string positionInput) =>\n    positionInput == \"Top left\" ? position.top_left :\n     positionInput == \"Middle right\" ? position.middle_right :\n     positionInput == \"Middle left\" ? position.middle_left :\n     positionInput == \"Bottom right\" ? position.bottom_right :\n     positionInput == \"Bottom left\" ? position.bottom_left :\n     position.top_right\n\nf_table_text_size(string sizeInput) =>\n    sizeInput == \"Tiny\" ? size.tiny :\n     sizeInput == \"Normal\" ? size.normal :\n     sizeInput == \"Large\" ? size.large :\n     sizeInput == \"Huge\" ? size.huge :\n     size.small\n\ntuesdaySma = ta.sma(close, tuesdaySmaLen)\ntuesdayRsi = ta.rsi(close, tuesdayRsiLen)\nfridaySma = ta.sma(close, fridaySmaLen)\nfridayRsi = ta.rsi(close, fridayRsiLen)\n\ntuesdayFilterValid = f_filter_condition(tuesdayFilter, tuesdayDirection, close, tuesdaySma, tuesdayRsi, tuesdayRsiLevel)\nfridayFilterValid = f_filter_condition(fridayFilter, fridayDirection, close, fridaySma, fridayRsi, fridayRsiLevel)\n\ntuesdaySignal = tuesdayEnabled and dayofweek == dayofweek.monday and tuesdayFilterValid\nfridaySignal = fridayEnabled and dayofweek == dayofweek.thursday and fridayFilterValid\nshortSignal = tuesdaySignal or fridaySignal\n\nentryAlertMessage = tuesdaySignal ? \"ENTRY: DAX Tuesday Short now at Monday Daily Close.\" :\n     fridaySignal ? \"ENTRY: DAX Friday Short now at Thursday Daily Close.\" :\n     \"ENTRY: DAX Short now at Daily Close.\"\n\nexitPlanAlertMessage = tuesdaySignal ? \"EXIT PLAN: Close the Tuesday Short tomorrow at Tuesday Daily Close.\" :\n     fridaySignal ? \"EXIT PLAN: Close the Friday Short tomorrow at Friday Daily Close.\" :\n     \"EXIT PLAN: Close this Short on the next trading day at Daily Close.\"\n\nvar int shortEntryBar = na\nexitSignal = strategy.position_size < 0 and not na(shortEntryBar) and bar_index > shortEntryBar\n\nif shortSignal and strategy.position_size == 0\n    if sendAlertEmails\n        alert(entryAlertMessage, alert.freq_all)\n        alert(exitPlanAlertMessage, alert.freq_all)\n    strategy.entry(\"Short\", strategy.short, comment=entryAlertMessage, alert_message=entryAlertMessage, disable_alert=true)\n    shortEntryBar := bar_index\n\nif exitSignal\n    strategy.close(\"Short\", comment=\"Close Short\", disable_alert=true)\n    shortEntryBar := na\n\nif strategy.position_size == 0 and not shortSignal and not exitSignal\n    shortEntryBar := na\n\nplotshape(showSignals and tuesdaySignal, title=\"Tuesday Short Signal\", style=shape.triangledown, location=location.abovebar, color=color.red, text=\"Tue\", textcolor=color.white, size=size.tiny)\nplotshape(showSignals and fridaySignal, title=\"Friday Short Signal\", style=shape.triangledown, location=location.abovebar, color=color.red, text=\"Fri\", textcolor=color.white, size=size.tiny)\nplotshape(showSignals and exitSignal, title=\"Close Short\", style=shape.xcross, location=location.belowbar, color=color.gray, text=\"Close\", textcolor=color.white, size=size.tiny)\n\nplot(showSmas and tuesdayEnabled and tuesdayFilter == \"SMA\" ? tuesdaySma : na, title=\"Tuesday SMA\", color=color.rgb(20, 20, 20), linewidth=1)\nplot(showSmas and fridayEnabled and fridayFilter == \"SMA\" ? fridaySma : na, title=\"Friday SMA\", color=color.rgb(182, 129, 30), linewidth=1)\n\nalertcondition(tuesdaySignal, title=\"Tuesday short entry\", message=\"DAX Tuesday Short Entry at Daily Close\")\nalertcondition(fridaySignal, title=\"Friday short entry\", message=\"DAX Friday Short Entry at Daily Close\")\nalertcondition(shortSignal, title=\"Short entry\", message=\"DAX Tuesday/Friday Short Entry at Daily Close\")\n\nvar table statusTable = table.new(f_table_position(tablePositionInput), 3, 3, bgcolor=color.new(color.white, 0), frame_color=color.new(color.gray, 72), frame_width=1, border_color=color.new(color.gray, 88), border_width=1)\n\ntableTextSize = f_table_text_size(tableTextSizeInput)\n\nif showTable and (barstate.islast or barstate.islastconfirmedhistory)\n    color headerBg = color.rgb(18, 24, 38)\n    color subBg = color.rgb(241, 245, 249)\n    table.cell(statusTable, 0, 0, \"Setup\", text_color=color.white, bgcolor=headerBg, text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 1, 0, \"Filter\", text_color=color.white, bgcolor=headerBg, text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 2, 0, \"Action\", text_color=color.white, bgcolor=headerBg, text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 0, 1, \"Tuesday\", bgcolor=subBg, text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 1, 1, f_valid_text(tuesdayEnabled, tuesdayFilterValid), bgcolor=f_valid_bg(tuesdayEnabled, tuesdayFilterValid), text_color=tuesdayFilterValid ? color.white : color.rgb(20, 20, 20), text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 2, 1, f_action_text(\"Tuesday\", tuesdayEnabled, tuesdayFilterValid), bgcolor=f_action_bg(tuesdayEnabled, tuesdayFilterValid), text_color=tuesdayEnabled and tuesdayFilterValid ? color.white : color.rgb(20, 20, 20), text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 0, 2, \"Friday\", bgcolor=subBg, text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 1, 2, f_valid_text(fridayEnabled, fridayFilterValid), bgcolor=f_valid_bg(fridayEnabled, fridayFilterValid), text_color=fridayFilterValid ? color.white : color.rgb(20, 20, 20), text_size=tableTextSize, width=tableWidth, height=tableHeight)\n    table.cell(statusTable, 2, 2, f_action_text(\"Friday\", fridayEnabled, fridayFilterValid), bgcolor=f_action_bg(fridayEnabled, fridayFilterValid), text_color=fridayEnabled and fridayFilterValid ? color.white : color.rgb(20, 20, 20), text_size=tableTextSize, width=tableWidth, height=tableHeight)\nelse if not showTable and (barstate.islast or barstate.islastconfirmedhistory)\n    table.clear(statusTable, 0, 0, 2, 2)",
+    "excel_path": "data/strategies/uploads/5084cb702cdd.xlsx",
+    "id": "139afea1-6604-4f64-9bc3-faffac3208ea",
+    "created_at": "2026-09-28T08:56:32"
+  }
+]

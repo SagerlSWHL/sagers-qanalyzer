@@ -14,6 +14,8 @@ from views.monthly import show_monthly
 from views.statistics import show_statistics
 from views.news import show_news
 from views.backtesting import show_backtesting
+from views.strategien import show_strategien
+
 
 
 # ---------------------------------------------------------
@@ -79,6 +81,9 @@ elif st.session_state["page"] == "News":
 
 elif st.session_state["page"] == "Backtesting":
     show_backtesting()
+
+elif st.session_state["page"] == "Strategien":
+    show_strategien()
 
 else:
 
