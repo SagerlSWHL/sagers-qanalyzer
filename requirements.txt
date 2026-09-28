@@ -6,3 +6,5 @@ openpyxl
 plotly
 yfinance
 biquote
+supabase
+python-dotenv
