@@ -11,17 +11,29 @@ from core.auth import get_current_user
 from core.supabase_client import get_authenticated_client
 
 
+# =========================================================
+# WEEKDAY-LABELS
+# =========================================================
+
 WEEKDAY_LABELS = [
     "Montag", "Dienstag", "Mittwoch", "Donnerstag",
     "Freitag", "Samstag", "Sonntag",
 ]
 
 
+# =========================================================
+# LOAD
+# =========================================================
+
 def load_user_strategies() -> list[dict]:
+    """Lädt alle Strategien des eingeloggten Users."""
+
     user = get_current_user()
     if not user:
         return []
+
     client = get_authenticated_client()
+
     try:
         response = (
             client.table("strategies")
@@ -35,6 +47,8 @@ def load_user_strategies() -> list[dict]:
 
 
 def load_strategy(strategy_id: str) -> Optional[dict]:
+    """Lädt eine einzelne Strategie."""
+
     client = get_authenticated_client()
     try:
         r = (
@@ -48,15 +62,27 @@ def load_strategy(strategy_id: str) -> Optional[dict]:
         return None
 
 
+# =========================================================
+# CREATE
+# =========================================================
+
 def create_strategy(data: dict) -> tuple[bool, str, Optional[str]]:
+    """
+    Erstellt eine neue Strategie für den eingeloggten User.
+    Rückgabe: (Erfolg, Nachricht, strategy_id)
+    """
+
     user = get_current_user()
     if not user:
         return False, "Nicht eingeloggt.", None
+
     client = get_authenticated_client()
+
     payload = {
         "user_id": user["id"],
         **data,
     }
+
     try:
         response = client.table("strategies").insert(payload).execute()
         if response.data:
@@ -66,8 +92,15 @@ def create_strategy(data: dict) -> tuple[bool, str, Optional[str]]:
         return False, f"Fehler: {exc}", None
 
 
+# =========================================================
+# UPDATE
+# =========================================================
+
 def update_strategy(strategy_id: str, changes: dict) -> tuple[bool, str]:
+    """Aktualisiert eine Strategie."""
+
     client = get_authenticated_client()
+
     try:
         client.table("strategies").update(changes).eq("id", strategy_id).execute()
         return True, "Strategie aktualisiert."
@@ -75,7 +108,13 @@ def update_strategy(strategy_id: str, changes: dict) -> tuple[bool, str]:
         return False, f"Fehler: {exc}"
 
 
+# =========================================================
+# DELETE
+# =========================================================
+
 def delete_strategy(strategy_id: str) -> tuple[bool, str]:
+    """Löscht eine Strategie."""
+
     client = get_authenticated_client()
     try:
         client.table("strategies").delete().eq("id", strategy_id).execute()
@@ -84,7 +123,15 @@ def delete_strategy(strategy_id: str) -> tuple[bool, str]:
         return False, f"Fehler: {exc}"
 
 
+# =========================================================
+# SEED (beim ersten Login)
+# =========================================================
+
 def ensure_seed_strategies():
+    """Aktuell deaktiviert – Nutzer starten mit leerer Bibliothek."""
+    return
+
+    # ---- Seeds (auskommentiert, bei Bedarf aktivieren) ----
     existing = load_user_strategies()
     if existing:
         return
@@ -101,12 +148,12 @@ def ensure_seed_strategies():
                 "Vortagesschluss liegt. Ausstieg am nächsten Tag."
             ),
             "regeln": [
-                "Einstieg: Montag + Close < Vortag minus 1 %",
-                "Ausstieg: Close groesser Vortages-Hoch",
+                "Einstieg: Montag + Close < Vortag − 1 %",
+                "Ausstieg: Close > Vortages-Hoch",
             ],
-            "entry_weekday": 0,
+            "entry_weekday": 0,       # Montag
             "entry_time": "09:00:00",
-            "exit_weekday": 1,
+            "exit_weekday": 1,        # Dienstag
             "exit_time": "22:00:00",
             "validation_type": "close_below_prev",
             "validation_params": {"pct": 1.0},
@@ -118,8 +165,8 @@ def ensure_seed_strategies():
             "symbol_yahoo": "SPY",
             "timeframe": "1 Tag",
             "typ": "Mean Reversion",
-            "beschreibung": "Long wenn RSI(3) unter 18.",
-            "regeln": ["Einstieg: RSI(3) unter 18"],
+            "beschreibung": "Long wenn RSI(3) < 18.",
+            "regeln": ["Einstieg: RSI(3) < 18"],
             "entry_weekday": 0,
             "entry_time": "16:00:00",
             "exit_weekday": 1,
