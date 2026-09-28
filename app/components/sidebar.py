@@ -5,6 +5,7 @@ Erzeugt die Sidebar-Navigation des Sagers qAnalyzer.
 """
 
 import streamlit as st
+from core.auth import get_current_user, logout
 
 
 def show_sidebar():
@@ -128,6 +129,39 @@ def show_sidebar():
         if st.button("🐍  Python & AI", width="stretch"):
             st.session_state["page"] = "Python & AI"
 
+
+
+
+
+        # -----------------------------------------------------
+        # USER-BEREICH
+        # -----------------------------------------------------
+
+        user = get_current_user()
+
+        if user:
+            st.markdown("---")
+
+            st.markdown(
+                f"""
+                <div style="
+                    text-align: center;
+                    font-size: 11px;
+                    color: #666;
+                    padding: 4px 0;
+                ">
+                    <span style="color: #888;">Eingeloggt als</span><br>
+                    <strong style="color: #bbb; font-size: 12px;">
+                        {user.get('email', 'Unbekannt')}
+                    </strong>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            if st.button("🚪  Ausloggen", width="stretch"):
+                logout()
+                st.rerun()
 
         # -----------------------------------------------------
         # ABOUT / VERSION
