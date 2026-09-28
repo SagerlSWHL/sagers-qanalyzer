@@ -15,6 +15,7 @@ from views.statistics import show_statistics
 from views.news import show_news
 from views.backtesting import show_backtesting
 from views.strategien import show_strategien
+from core.auth import is_logged_in, render_login_form
 
 
 
@@ -28,6 +29,14 @@ st.set_page_config(
     layout="wide"
 )
 
+# ---------------------------------------------------------
+# AUTH CHECK
+# ---------------------------------------------------------
+
+# Wenn nicht eingeloggt → Login-Maske zeigen, Rest überspringen
+if not is_logged_in():
+    render_login_form()
+    st.stop()
 
 # ---------------------------------------------------------
 # SIDEBAR
