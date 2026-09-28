@@ -58,3 +58,38 @@ def is_configured() -> bool:
     return bool(
         os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY")
     )
+
+
+
+# =========================================================
+# AUTHENTICATED CLIENT (für RLS-Abfragen)
+# =========================================================
+
+def get_authenticated_client() -> Client:
+    """
+    Erstellt einen Client mit der aktuellen User-Session.
+
+    Dadurch greift Row Level Security: der Nutzer sieht
+    nur seine eigenen Zeilen.
+    """
+
+    import streamlit as st
+
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+
+    if not url or not key:
+        raise RuntimeError("Supabase-Credentials fehlen.")
+
+    access_token = st.session_state.get("auth_session")
+    refresh_token = st.session_state.get("auth_refresh_token")
+
+    if not access_token:
+        raise RuntimeError("Kein User eingeloggt.")
+
+    client = create_client(url, key)
+
+    # Session setzen – RLS greift jetzt
+    client.auth.set_session(access_token, refresh_token or "")
+
+    return client

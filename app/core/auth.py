@@ -118,6 +118,7 @@ def _set_session(response):
     }
     if response.session:
         st.session_state[KEY_SESSION] = response.session.access_token
+        st.session_state["auth_refresh_token"] = response.session.refresh_token
 
 
 def get_current_user() -> dict | None:
@@ -140,6 +141,7 @@ def logout():
 
     st.session_state.pop(KEY_USER, None)
     st.session_state.pop(KEY_SESSION, None)
+    st.session_state.pop("auth_refresh_token", None)
 
 
 # =========================================================

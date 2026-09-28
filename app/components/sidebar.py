@@ -88,6 +88,9 @@ def show_sidebar():
         
         if st.button("📅  Monthly", width="stretch"):
             st.session_state["page"] = "Monthly"
+
+        if st.button("🗓️  Kalender", width="stretch"):
+            st.session_state["page"] = "Kalender"
         
         if st.button("📐  Statistics", width="stretch"):
             st.session_state["page"] = "Statistics"
