@@ -45,7 +45,7 @@ def _render_kpi_cards(k: dict):
     c7.metric("Expectancy", f"${k['expectancy']:,.2f}")
     c8.metric(
         "Sharpe (ann.)",
-        f"{k['sharpe']:.2f}" if k["n"] >= 5 else "—",
+        f"{k['sharpe']:.2f}" if k["n"] >= 20 else "—",
     )
 
     c9, c10, c11, c12 = st.columns(4)
