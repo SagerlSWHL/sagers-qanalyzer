@@ -263,6 +263,12 @@ def _render_card(strategy: dict):
                     f"{excel_stats['max_dd']:.2f} %"
                     if excel_stats.get("max_dd") is not None
                     else "—",
+                    help="Intraday (wie TradingView). Close-to-Close: "
+                    + (
+                        f"{excel_stats['max_dd_close']:.2f} %"
+                        if excel_stats.get("max_dd_close") is not None
+                        else "—"
+                    ),
                 )
 
                 # Zeile 2 – Trade-Stats

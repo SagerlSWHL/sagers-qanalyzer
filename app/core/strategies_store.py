@@ -355,16 +355,23 @@ def load_excel_summary(excel_path: str) -> dict:
             prefer_col="alle %",
         ),
 
-        # ---------- Max Drawdown ----------
+        # ---------- Max Drawdown (Intraday wie TradingView) ----------
         "max_dd": _search(
+            ["max. drawdown (innerhalb balken)"],
+            SHEET_PERF + ALL_SHEETS,
+            prefer_col="alle %",
+            exclude=["als % des startkapitals"],
+        ) or _search(
             ["max. drawdown (schlusskurs zu schlusskurs)"],
             SHEET_PERF + ALL_SHEETS,
             prefer_col="alle %",
-        ) or _search(
-            ["max. drawdown", "max drawdown", "maximaler drawdown"],
+        ),
+
+        # ---------- Max Drawdown (Close-to-Close, Zusatz) ----------
+        "max_dd_close": _search(
+            ["max. drawdown (schlusskurs zu schlusskurs)"],
             SHEET_PERF + ALL_SHEETS,
             prefer_col="alle %",
-            exclude=["rendite des", "innerhalb", "als % des"],
         ),
 
         # ---------- Trades ----------
