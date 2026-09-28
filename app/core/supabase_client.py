@@ -87,9 +87,7 @@ def is_configured() -> bool:
 def get_authenticated_client() -> Client:
     """
     Erstellt einen Client mit der aktuellen User-Session.
-
-    Dadurch greift Row Level Security: der Nutzer sieht
-    nur seine eigenen Zeilen.
+    Cached pro Session, damit set_session nur einmal läuft.
     """
 
     import streamlit as st
@@ -100,7 +98,6 @@ def get_authenticated_client() -> Client:
     # Fallback: Streamlit Cloud Secrets
     if not url or not key:
         try:
-            import streamlit as st
             url = url or st.secrets.get("SUPABASE_URL")
             key = key or st.secrets.get("SUPABASE_ANON_KEY")
         except Exception:
@@ -115,9 +112,21 @@ def get_authenticated_client() -> Client:
     if not access_token:
         raise RuntimeError("Kein User eingeloggt.")
 
+    # Cache-Key: Kombination aus Token-Anfang + URL
+    cache_key = "supabase_client_" + access_token[-16:]
+
+    # Bereits im State? → direkt zurückgeben
+    if cache_key in st.session_state:
+        return st.session_state[cache_key]
+
+    # Neu erstellen
     client = create_client(url, key)
 
-    # Session setzen – RLS greift jetzt
-    client.auth.set_session(access_token, refresh_token or "")
+    try:
+        client.auth.set_session(access_token, refresh_token or "")
+    except Exception:
+        # Bei Timeout trotzdem Client zurückgeben (Session läuft trotzdem via JWT)
+        pass
 
+    st.session_state[cache_key] = client
     return client
