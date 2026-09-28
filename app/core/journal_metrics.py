@@ -169,3 +169,64 @@ def monthly_returns(df: pd.DataFrame) -> pd.DataFrame:
     pivot.columns = [month_names[m - 1] for m in pivot.columns]
 
     return pivot
+
+
+
+# =========================================================
+# BENCHMARK-VERGLEICH (Buy & Hold)
+# =========================================================
+
+def benchmark_curve(df: pd.DataFrame, symbol: str) -> pd.Series:
+    """
+    Buy & Hold-Benchmark für das Symbol über denselben Zeitraum.
+
+    Rückgabe
+    --------
+    pd.Series mit Index = Datum, Werte = kumulierter P&L in USD
+    (bezogen auf start_capital).
+    """
+
+    if df.empty or not symbol:
+        return pd.Series(dtype=float)
+
+    start = df["datum"].min()
+    end = df["datum"].max()
+
+    try:
+        import yfinance as yf
+    except ImportError:
+        return pd.Series(dtype=float)
+
+    try:
+        data = yf.download(
+            symbol,
+            start=start.strftime("%Y-%m-%d"),
+            end=(end + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+            interval="1d",
+            progress=False,
+            auto_adjust=True,
+            threads=False,
+        )
+    except Exception:
+        return pd.Series(dtype=float)
+
+    if data is None or data.empty:
+        return pd.Series(dtype=float)
+
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+
+    data.columns = [c.lower() for c in data.columns]
+
+    close = data["close"].dropna()
+    if close.empty:
+        return pd.Series(dtype=float)
+
+    # Startkapital-basiert
+    start_capital = 10000.0
+    bh = (close / close.iloc[0]) * start_capital - start_capital
+
+    bh.index = pd.to_datetime(bh.index).tz_localize(None)
+    bh.name = "bh_pnl"
+
+    return bh

@@ -55,19 +55,34 @@ def _render_kpi_cards(k: dict):
     c12.metric("Serien", f"{k['streak_win']}W / {k['streak_loss']}L")
 
 
-def _render_equity(df: pd.DataFrame):
+def _render_equity(df: pd.DataFrame, symbol: str = "SPY"):
+    from core.journal_metrics import benchmark_curve
+
     fig = go.Figure()
+
+    # Strategie-Equity
     fig.add_trace(go.Scatter(
         x=df["datum"], y=df["kum_pnl"],
-        mode="lines", name="Equity (USD)",
+        mode="lines", name="Journal",
         line=dict(color="#60A5FA", width=2),
     ))
+
+    # Benchmark (Buy & Hold)
+    bh = benchmark_curve(df, symbol)
+    if not bh.empty:
+        fig.add_trace(go.Scatter(
+            x=bh.index, y=bh.values,
+            mode="lines", name=f"Buy & Hold ({symbol})",
+            line=dict(color="#F59E0B", width=1.5, dash="dot"),
+        ))
+
     fig.update_layout(
         height=360, margin=dict(l=60, r=20, t=20, b=40),
         paper_bgcolor="#0e1117", plot_bgcolor="#0e1117",
         font=dict(color="#e6e6e6"),
         xaxis=dict(gridcolor="#333"),
         yaxis=dict(title="P&L (USD)", gridcolor="#333"),
+        legend=dict(orientation="h", y=1.05, x=1, xanchor="right"),
     )
     st.plotly_chart(fig, width="stretch")
 
@@ -182,7 +197,44 @@ def show_performance():
     )
 
     with tab_eq:
-        _render_equity(df)
+        # Symbol-Auswahl für Benchmark
+        col_a, col_b = st.columns([3, 1])
+        with col_a:
+            st.caption("Vergleich mit Buy & Hold")
+        with col_b:
+            benchmark_symbol = st.selectbox(
+                "Benchmark",
+                options=["SPY", "QQQ", "TLT", "GLD", "BTC-USD", "^GDAXI"],
+                index=0,
+                label_visibility="collapsed",
+                key="perf_benchmark_select",
+            )
+
+        _render_equity(df, benchmark_symbol)
+
+        # Benchmark-Vergleich-KPI
+        from core.journal_metrics import benchmark_curve
+        bh = benchmark_curve(df, benchmark_symbol)
+        if not bh.empty:
+            bh_return = float(bh.iloc[-1])
+            journal_return = float(df["kum_pnl"].iloc[-1])
+            diff = journal_return - bh_return
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric(
+                "Journal P&L",
+                f"${journal_return:,.2f}",
+            )
+            col2.metric(
+                f"Buy & Hold {benchmark_symbol}",
+                f"${bh_return:,.2f}",
+            )
+            col3.metric(
+                "Differenz",
+                f"${diff:+,.2f}",
+                delta="Outperformance" if diff > 0 else "Underperformance",
+                delta_color="normal" if diff > 0 else "inverse",
+            )
 
     with tab_dd:
         _render_drawdown(df)
@@ -196,5 +248,30 @@ def show_performance():
     with tab_list:
         display = df.copy()
         display["datum"] = display["datum"].dt.strftime("%d.%m.%Y")
-        display.columns = ["Datum", "Symbol", "Richtung", "P&L (USD)", "Kumuliert (USD)", "Kumuliert %"]
-        st.dataframe(display, width="stretch", hide_index=True, height=500)
+
+        # Zahlen hübscher formatieren
+        display["pnl"] = display["pnl"].apply(lambda v: f"${v:+,.2f}")
+        display["kum_pnl"] = display["kum_pnl"].apply(lambda v: f"${v:,.2f}")
+        display["kum_pct"] = display["kum_pct"].apply(lambda v: f"{v:+.2f} %")
+
+        display.columns = [
+            "Datum", "Symbol", "Richtung",
+            "P&L", "Kumuliert USD", "Kumuliert %",
+        ]
+
+        st.dataframe(
+            display,
+            width="stretch",
+            hide_index=True,
+            height=500,
+        )
+
+        # CSV-Export
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "📥  Als CSV herunterladen",
+            data=csv,
+            file_name="journal_trades.csv",
+            mime="text/csv",
+            width="stretch",
+        )
