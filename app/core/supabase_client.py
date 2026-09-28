@@ -43,10 +43,19 @@ def get_client() -> Client:
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_ANON_KEY")
 
+    # Fallback: Streamlit Cloud Secrets (TOML)
+    if not url or not key:
+        try:
+            import streamlit as st
+            url = url or st.secrets.get("SUPABASE_URL")
+            key = key or st.secrets.get("SUPABASE_ANON_KEY")
+        except Exception:
+            pass
+
     if not url or not key:
         raise RuntimeError(
             "SUPABASE_URL oder SUPABASE_ANON_KEY fehlen. "
-            "Prüfe die .env-Datei im Projekt-Root."
+            "Prüfe .env (lokal) oder Streamlit Secrets (Cloud)."
         )
 
     _client = create_client(url, key)
@@ -55,9 +64,19 @@ def get_client() -> Client:
 
 def is_configured() -> bool:
     """Prüft, ob die Supabase-Credentials gesetzt sind."""
-    return bool(
-        os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY")
-    )
+
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+
+    if not url or not key:
+        try:
+            import streamlit as st
+            url = url or st.secrets.get("SUPABASE_URL")
+            key = key or st.secrets.get("SUPABASE_ANON_KEY")
+        except Exception:
+            pass
+
+    return bool(url and key)
 
 
 
@@ -77,6 +96,15 @@ def get_authenticated_client() -> Client:
 
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_ANON_KEY")
+
+    # Fallback: Streamlit Cloud Secrets
+    if not url or not key:
+        try:
+            import streamlit as st
+            url = url or st.secrets.get("SUPABASE_URL")
+            key = key or st.secrets.get("SUPABASE_ANON_KEY")
+        except Exception:
+            pass
 
     if not url or not key:
         raise RuntimeError("Supabase-Credentials fehlen.")
