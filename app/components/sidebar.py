@@ -148,6 +148,10 @@ def show_sidebar():
         if user:
             st.markdown("---")
 
+            from core.auth import get_display_name, set_display_name
+
+            current_name = get_display_name()
+
             st.markdown(
                 f"""
                 <div style="
@@ -157,13 +161,42 @@ def show_sidebar():
                     padding: 4px 0;
                 ">
                     <span style="color: #888;">Eingeloggt als</span><br>
-                    <strong style="color: #bbb; font-size: 12px;">
-                        {user.get('email', 'Unbekannt')}
+                    <strong style="color: #bbb; font-size: 13px;">
+                        {current_name}
                     </strong>
+                    <br>
+                    <span style="color: #555; font-size: 10px;">
+                        {user.get('email', '')}
+                    </span>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+            # Popover für Namensänderung
+            with st.popover("✏️  Profil", use_container_width=True):
+                st.markdown("**Anzeigename ändern**")
+
+                new_name = st.text_input(
+                    "Name",
+                    value=current_name,
+                    max_chars=40,
+                    key="edit_display_name",
+                    label_visibility="collapsed",
+                )
+
+                if st.button(
+                    "💾  Speichern",
+                    type="primary",
+                    use_container_width=True,
+                    key="save_display_name",
+                ):
+                    ok, msg = set_display_name(new_name)
+                    if ok:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
             if st.button("🚪  Ausloggen", width="stretch"):
                 logout()

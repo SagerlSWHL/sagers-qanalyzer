@@ -258,3 +258,54 @@ def render_login_form():
         "🔒 Deine Daten sind durch Row-Level-Security geschützt. "
         "Andere Nutzer können deine Trades nicht sehen."
     )
+
+
+# =========================================================
+# DISPLAY NAME
+# =========================================================
+
+def get_display_name() -> str:
+    """
+    Liefert den Anzeigenamen des Users.
+    Reihenfolge: metadata.display_name → E-Mail-Prefix
+    """
+    client = get_client()
+
+    try:
+        user_response = client.auth.get_user()
+        if user_response and user_response.user:
+            meta = user_response.user.user_metadata or {}
+            name = meta.get("display_name")
+            if name:
+                return name
+
+            email = user_response.user.email or ""
+            return email.split("@")[0] if "@" in email else email
+    except Exception:
+        pass
+
+    # Fallback aus session_state
+    user = get_current_user()
+    if user and user.get("email"):
+        return user["email"].split("@")[0]
+
+    return "User"
+
+
+def set_display_name(name: str) -> tuple[bool, str]:
+    """Setzt den Anzeigenamen im Supabase-Account."""
+
+    name = name.strip()
+    if not name:
+        return False, "Name darf nicht leer sein."
+
+    if len(name) > 40:
+        return False, "Name darf maximal 40 Zeichen haben."
+
+    client = get_client()
+
+    try:
+        client.auth.update_user({"data": {"display_name": name}})
+        return True, "Name aktualisiert."
+    except Exception as exc:
+        return False, f"Fehler: {exc}"

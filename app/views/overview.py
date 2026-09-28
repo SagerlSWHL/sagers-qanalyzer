@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
+import plotly.graph_objects as go
 
 from core.auth import get_current_user
 from core.strategies_db import WEEKDAY_LABELS
@@ -109,8 +110,8 @@ def _compute_kpis(trades: list) -> dict:
 def _render_welcome(user: dict):
     """Willkommens-Header."""
 
-    email = user.get("email", "User")
-    name = email.split("@")[0]
+    from core.auth import get_display_name
+    name = get_display_name()
 
     st.markdown(
         f"""
@@ -306,6 +307,9 @@ def show_overview():
 
     _render_welcome(user)
 
+    # ---------- Mini-Chart: P&L-Verlauf 30 Tage ----------
+    _render_mini_chart(user)
+
     st.divider()
 
     # ---------- Trades laden ----------
@@ -340,3 +344,76 @@ def show_overview():
             "oder hinterlege im Bereich **Strategien** Zeitregeln für "
             "automatisch generierte Trades."
         )
+
+
+def _render_mini_chart(user: dict):
+    """Zeigt kleinen P&L-Verlauf der letzten 30 Tage."""
+
+    from datetime import date, timedelta
+
+    # Letzte 30 Tage laden
+    today = date.today()
+    start = today - timedelta(days=30)
+
+    client = get_authenticated_client()
+
+    try:
+        r = (
+            client.table("trades")
+            .select("datum, pnl, status")
+            .eq("status", "geschlossen")
+            .gte("datum", start.isoformat())
+            .lte("datum", today.isoformat())
+            .order("datum")
+            .execute()
+        )
+        trades = r.data or []
+    except Exception:
+        return
+
+    if not trades:
+        return
+
+    # Kumulierter P&L
+    df = pd.DataFrame(trades)
+    df["datum"] = pd.to_datetime(df["datum"])
+    df = df.sort_values("datum")
+    df["kum"] = df["pnl"].fillna(0).cumsum()
+
+    total = float(df["kum"].iloc[-1])
+
+    # Farbe je nach Vorzeichen
+    line_color = "#22C55E" if total >= 0 else "#EF4444"
+    fill_color = "rgba(34,197,94,0.12)" if total >= 0 else "rgba(239,68,68,0.12)"
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df["datum"],
+        y=df["kum"],
+        mode="lines",
+        line=dict(color=line_color, width=2),
+        fill="tozeroy",
+        fillcolor=fill_color,
+        hovertemplate="%{x|%d.%m.%Y}<br>P&L: $%{y:,.2f}<extra></extra>",
+        showlegend=False,
+    ))
+
+    fig.update_layout(
+        height=140,
+        margin=dict(l=10, r=10, t=10, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#e6e6e6", size=11),
+        xaxis=dict(showgrid=False, showticklabels=True, ticks="outside"),
+        yaxis=dict(showgrid=True, gridcolor="#222", showticklabels=True, ticksuffix=" $"),
+        hovermode="x unified",
+    )
+
+    st.markdown(
+        f"<div style='font-size:12px; color:#888; margin-bottom:4px;'>"
+        f"<b>Letzte 30 Tage</b> · "
+        f"<span style='color:{line_color}; font-weight:600;'>"
+        f"${total:+,.2f}</span></div>",
+        unsafe_allow_html=True,
+    )
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
