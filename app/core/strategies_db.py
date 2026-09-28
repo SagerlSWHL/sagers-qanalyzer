@@ -179,3 +179,117 @@ def ensure_seed_strategies():
 
     for seed in seeds:
         create_strategy(seed)
+
+
+
+# =========================================================
+# AUTO-GENERIERUNG VON TRADES
+# =========================================================
+
+def generate_auto_trades_for_month(year: int, month: int) -> int:
+    """
+    Erzeugt für einen Monat automatisch geplante Trades aus allen
+    Strategien mit auto_generate=True.
+
+    Prüft, ob für (Strategie, Datum) schon ein Trade existiert.
+    Führt anschließend die Live-Validierung durch.
+
+    Rückgabe: Anzahl neu erzeugter Trades
+    """
+    import calendar as cal
+    from datetime import date, timedelta
+
+    from core.strategy_validator import validate_strategy
+
+    strategies = load_user_strategies()
+    if not strategies:
+        return 0
+
+    user = get_current_user()
+    if not user:
+        return 0
+
+    client = get_authenticated_client()
+
+    # Monatsgrenzen
+    first_day = date(year, month, 1)
+    last_day = date(year, month, cal.monthrange(year, month)[1])
+
+    # Bestehende Trades für den Monat laden (nur auto-generierte)
+    try:
+        existing_response = (
+            client.table("trades")
+            .select("id, strategy_id, datum")
+            .gte("datum", first_day.isoformat())
+            .lte("datum", last_day.isoformat())
+            .execute()
+        )
+        existing = {
+            (t["strategy_id"], t["datum"])
+            for t in (existing_response.data or [])
+            if t.get("strategy_id")
+        }
+    except Exception:
+        existing = set()
+
+    created = 0
+    today = date.today()
+
+    for strategy in strategies:
+        if not strategy.get("auto_generate"):
+            continue
+
+        entry_weekday = strategy.get("entry_weekday")
+        if entry_weekday is None:
+            continue
+
+        symbol = strategy.get("symbol_yahoo") or strategy.get("symbol", "")
+        if not symbol:
+            continue
+
+        # Alle Termine im Monat, die zum Wochentag passen
+        current = first_day
+        while current <= last_day:
+            if current.weekday() == entry_weekday:
+                key = (strategy["id"], current.isoformat())
+
+                if key in existing:
+                    current += timedelta(days=1)
+                    continue
+
+                # Validierung durchführen
+                validation = validate_strategy(strategy, current)
+                valid = validation.get("valid")
+                note = validation.get("note", "")
+
+                # Status abhängig von Validierung + Datum
+                if current < today:
+                    # Vergangenheit: als geschlossen markieren (falls nie ausgeführt)
+                    status = "verworfen"
+                elif valid is False:
+                    status = "verworfen"
+                else:
+                    status = "geplant"
+
+                payload = {
+                    "user_id": user["id"],
+                    "strategy_id": strategy["id"],
+                    "datum": current.isoformat(),
+                    "symbol": symbol.split(":")[-1],
+                    "richtung": "Long",
+                    "status": status,
+                    "auto_generated": True,
+                    "validated": valid,
+                    "validation_note": note,
+                    "notizen": f"Auto-generiert aus Strategie: {strategy.get('name', '')}",
+                }
+
+                try:
+                    client.table("trades").insert(payload).execute()
+                    created += 1
+                except Exception:
+                    pass
+
+            current += timedelta(days=1)
+
+    return created

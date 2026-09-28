@@ -86,8 +86,8 @@ def is_configured() -> bool:
 
 def get_authenticated_client() -> Client:
     """
-    Erstellt einen Client mit der aktuellen User-Session.
-    Cached pro Session, damit set_session nur einmal läuft.
+    Client mit User-Session. Cached pro Session.
+    Setzt JWT direkt bei PostgREST – kein set_session() Timeout.
     """
 
     import streamlit as st
@@ -95,7 +95,6 @@ def get_authenticated_client() -> Client:
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_ANON_KEY")
 
-    # Fallback: Streamlit Cloud Secrets
     if not url or not key:
         try:
             url = url or st.secrets.get("SUPABASE_URL")
@@ -107,25 +106,22 @@ def get_authenticated_client() -> Client:
         raise RuntimeError("Supabase-Credentials fehlen.")
 
     access_token = st.session_state.get("auth_session")
-    refresh_token = st.session_state.get("auth_refresh_token")
-
     if not access_token:
         raise RuntimeError("Kein User eingeloggt.")
 
-    # Cache-Key: Kombination aus Token-Anfang + URL
-    cache_key = "supabase_client_" + access_token[-16:]
+    # Cache-Key
+    cache_key = "sb_client_" + access_token[-16:]
 
-    # Bereits im State? → direkt zurückgeben
     if cache_key in st.session_state:
         return st.session_state[cache_key]
 
     # Neu erstellen
     client = create_client(url, key)
 
+    # JWT direkt bei PostgREST setzen (schnell, kein HTTP-Check)
     try:
-        client.auth.set_session(access_token, refresh_token or "")
+        client.postgrest.auth(access_token)
     except Exception:
-        # Bei Timeout trotzdem Client zurückgeben (Session läuft trotzdem via JWT)
         pass
 
     st.session_state[cache_key] = client

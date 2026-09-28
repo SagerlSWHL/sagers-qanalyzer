@@ -10,6 +10,7 @@ Klick auf Karte → Details + Bearbeiten.
 import calendar
 from datetime import date, datetime, timedelta
 from typing import Optional
+from core.strategies_db import generate_auto_trades_for_month
 
 import pandas as pd
 import streamlit as st
@@ -624,6 +625,13 @@ def show_kalender():
     year, month = _render_navigation()
 
     st.divider()
+
+    # ---------- Auto-Generierung ----------
+    with st.spinner("Prüfe Strategien…"):
+        created = generate_auto_trades_for_month(year, month)
+
+    if created > 0:
+        st.toast(f"✨ {created} Trade(s) aus Strategien erzeugt", icon="✨")
 
     # ---------- Trades laden ----------
     trades = _load_trades_for_month(year, month)
