@@ -23,6 +23,7 @@ from core.feature_engineering import (
 from core.market_data import POPULAR_SYMBOLS, load_ohlc
 from core.ml_engine import (
     cluster_trades,
+    permutation_test,
     suggest_filters,
     train_random_forest,
 )
@@ -371,10 +372,17 @@ def show_ml_analysis():
         with st.spinner("Suche Filter…"):
             filters = suggest_filters(enriched, FEATURE_COLUMNS)
 
+        # Permutations-Test
+        with st.spinner("Permutations-Test läuft (~30-60 Sek)…"):
+            perm_result = permutation_test(
+                enriched, FEATURE_COLUMNS, n_permutations=50
+            )
+
         # In Session speichern
         st.session_state["ml_result"] = ml_result
         st.session_state["ml_cluster"] = cluster_result
         st.session_state["ml_filters"] = filters
+        st.session_state["ml_perm"] = perm_result
         st.session_state["ml_strategy"] = strategy_name
         st.session_state["ml_symbol"] = symbol
         st.session_state["ml_n_trades"] = len(enriched)
@@ -407,8 +415,9 @@ def show_ml_analysis():
     st.divider()
 
     # Tabs
-    tab_imp, tab_cluster, tab_filters, tab_pred = st.tabs(
-        ["Feature Importance", "Clustering", "Filter-Vorschläge", "Predictions"]
+    tab_imp, tab_cluster, tab_filters, tab_pred, tab_perm = st.tabs(
+        ["📊 Features", "🎯 Cluster", "🔍 Filter",
+         "🔮 Predictions", "🧪 Permutation"]
     )
 
     with tab_imp:
@@ -452,3 +461,123 @@ def show_ml_analysis():
             f"Korrekte Vorhersagen: **{correct} / {total}** "
             f"({correct / total * 100:.1f} %)"
         )
+
+    with tab_perm:
+        perm = st.session_state.get("ml_perm")
+        if not perm:
+            st.info("Kein Permutations-Test verfügbar.")
+        else:
+            _render_permutation(perm)
+
+
+# =========================================================
+# PERMUTATIONS-TEST ANZEIGE
+# =========================================================
+
+def _render_permutation(perm: dict):
+    """Zeigt den Permutations-Test."""
+
+    st.subheader("Permutations-Test")
+
+    if "error" in perm:
+        st.error(perm["error"])
+        return
+
+    st.write(
+        "**Was wird geprüft?** Wir haben die echten Trade-Labels (Gewinn/Verlust) "
+        "zufällig gemischt und das Modell neu trainiert. Wenn die echte AUC "
+        "nicht besser ist als die Zufalls-AUCs, hat das Modell kein echtes Signal gefunden."
+    )
+
+    # ---------- KPI-Karten ----------
+    real = perm["real_auc"]
+    p = perm["p_value"]
+    med = perm["percentiles"]["50"]
+    q95 = perm["percentiles"]["95"]
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.metric("Echte AUC", f"{real:.3f}")
+    with c2:
+        st.metric("Zufalls-Median", f"{med:.3f}")
+    with c3:
+        st.metric("Zufalls-95 %", f"{q95:.3f}")
+    with c4:
+        st.metric("p-Wert", f"{p:.4f}")
+
+    # ---------- Bewertung ----------
+    if p < 0.01:
+        st.success(f"✅ **{perm['verdict']}**")
+    elif p < 0.05:
+        st.success(f"✅ **{perm['verdict']}**")
+    elif p < 0.10:
+        st.warning(f"⚠️ **{perm['verdict']}**")
+    else:
+        st.error(f"❌ **{perm['verdict']}**")
+        st.info(
+            "💡 **Was das bedeutet:** Das Modell findet **kein** Muster, das "
+            "Gewinner von Verlierern vorhersagt. Die Filter-Vorschläge aus dem "
+            "anderen Tab sind mit hoher Wahrscheinlichkeit **Overfitting**."
+        )
+
+    # ---------- Verteilungs-Chart ----------
+    st.markdown("**Verteilung der Zufalls-AUCs**")
+
+    fig = go.Figure()
+
+    # Histogramm der Permutationen
+    fig.add_trace(go.Histogram(
+        x=perm["perm_aucs"],
+        nbinsx=25,
+        name="Zufalls-AUCs",
+        marker_color="#8B5CF6",
+        opacity=0.7,
+    ))
+
+    # Rote Linie: echte AUC
+    fig.add_vline(
+        x=real,
+        line_color="#EF4444",
+        line_width=3,
+        line_dash="dash",
+        annotation_text=f"Echt: {real:.3f}",
+        annotation_position="top",
+    )
+
+    # Grüne Linie: 95%-Quantil
+    fig.add_vline(
+        x=q95,
+        line_color="#22C55E",
+        line_width=2,
+        line_dash="dot",
+        annotation_text=f"95 %: {q95:.3f}",
+        annotation_position="top right",
+    )
+
+    fig.update_layout(
+        height=340,
+        margin=dict(l=60, r=20, t=40, b=40),
+        paper_bgcolor="#0e1117",
+        plot_bgcolor="#0e1117",
+        font=dict(color="#e6e6e6"),
+        xaxis=dict(
+            title="AUC",
+            gridcolor="#333",
+        ),
+        yaxis=dict(
+            title="Anzahl Permutationen",
+            gridcolor="#333",
+        ),
+        showlegend=False,
+        bargap=0.05,
+    )
+
+    st.plotly_chart(fig, width="stretch")
+
+    st.caption(
+        f"**So liest du den Test:** Die rote Linie (echte AUC = {real:.3f}) zeigt "
+        f"wo unsere Strategie liegt. Die violetten Balken sind die Zufallsläufe. "
+        f"Wenn die rote Linie **rechts** von den violetten Balken liegt → echtes Signal. "
+        f"Wenn sie **mitten drin** oder links liegt → Zufall (wie hier)."
+    )

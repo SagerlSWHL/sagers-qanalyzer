@@ -8,6 +8,7 @@ Funktionen:
   - Feature Importance
   - Trade-Predictions
   - K-Means Clustering
+  - Permutations-Test
 
 Wichtig: Chronologischer Split (nie random), weil Zeitreihen
 autokorreliert sind.
@@ -39,20 +40,8 @@ def train_random_forest(
     max_depth: int = 8,
     random_state: int = 42,
 ) -> dict:
-    """
-    Trainiert einen Random Forest mit chronologischem Split.
+    """Trainiert einen Random Forest mit chronologischem Split."""
 
-    Rückgabe
-    --------
-    dict mit:
-        model:           trainiertes Modell
-        feature_importance: DataFrame (feature, importance)
-        metrics:         dict mit AUC, Accuracy, Precision, Recall
-        predictions:     DataFrame mit echten + vorhergesagten Werten
-        X_train_cols:    Liste der verwendeten Features
-    """
-
-    # Nur Zeilen mit vollständigen Features
     valid_cols = [c for c in feature_cols if c in df.columns]
     df_clean = df[valid_cols + [target_col]].dropna().copy()
 
@@ -62,12 +51,10 @@ def train_random_forest(
     X = df_clean[valid_cols].values
     y = df_clean[target_col].values
 
-    # Chronologischer Split
     split_idx = int(len(X) * (1 - test_size))
     X_train, X_test = X[:split_idx], X[split_idx:]
     y_train, y_test = y[:split_idx], y[split_idx:]
 
-    # Modell
     model = RandomForestClassifier(
         n_estimators=n_estimators,
         max_depth=max_depth,
@@ -78,11 +65,9 @@ def train_random_forest(
 
     model.fit(X_train, y_train)
 
-    # Predictions
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
-    # Metriken
     try:
         auc = roc_auc_score(y_test, y_proba)
     except Exception:
@@ -98,14 +83,12 @@ def train_random_forest(
         "baseline_win_rate": float(y.mean()),
     }
 
-    # Feature Importance
     importance = pd.DataFrame({
         "feature": valid_cols,
         "importance": model.feature_importances_,
     }).sort_values("importance", ascending=False).reset_index(drop=True)
 
-    # Predictions-Tabelle
-    # Wichtig: Original-DataFrame für Kontext-Spalten (einstieg, rendite)
+    # Predictions aus Original-DataFrame (voller Kontext)
     original_idx = df_clean.index
     predictions = df.loc[original_idx[split_idx:]].copy()
     predictions["prediction"] = y_pred
@@ -131,16 +114,7 @@ def cluster_trades(
     n_clusters: int = 3,
     random_state: int = 42,
 ) -> dict:
-    """
-    Clustert Trades in n Gruppen.
-
-    Rückgabe
-    --------
-    dict mit:
-        labels:    Cluster-Zuordnung pro Trade
-        summary:   DataFrame mit Kennzahlen je Cluster
-        df_with_clusters: Original-DF + cluster-Spalte
-    """
+    """Clustert Trades in n Gruppen."""
 
     valid_cols = [c for c in feature_cols if c in df.columns]
     df_clean = df[valid_cols].dropna().copy()
@@ -148,11 +122,9 @@ def cluster_trades(
     if len(df_clean) < n_clusters * 10:
         return {"error": f"Zu wenige Trades (min. {n_clusters * 10})"}
 
-    # Skalieren (K-Means ist distanzbasiert)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(df_clean.values)
 
-    # K-Means
     kmeans = KMeans(
         n_clusters=n_clusters,
         random_state=random_state,
@@ -160,11 +132,9 @@ def cluster_trades(
     )
     labels = kmeans.fit_predict(X_scaled)
 
-    # Original-DF + Cluster-Label
     df_with_clusters = df.loc[df_clean.index].copy()
     df_with_clusters["cluster"] = labels
 
-    # Kennzahlen pro Cluster
     summary = df_with_clusters.groupby("cluster").agg(
         n_trades=("win", "count"),
         win_rate=("win", "mean"),
@@ -194,18 +164,7 @@ def suggest_filters(
     target_col: str = "win",
     top_n: int = 10,
 ) -> pd.DataFrame:
-    """
-    Schlägt Filter vor basierend auf einfachen Schwellenwerten.
-
-    Für jedes Feature: prüfen ob ein einfacher Cutoff die Win Rate
-    signifikant verbessert.
-
-    Rückgabe
-    --------
-    DataFrame mit Spalten: feature, threshold, direction,
-                           n_affected, win_rate_before,
-                           win_rate_after, improvement
-    """
+    """Schlägt Filter vor basierend auf einfachen Schwellenwerten."""
 
     valid_cols = [c for c in feature_cols if c in df.columns]
     df_clean = df[valid_cols + [target_col]].dropna().copy()
@@ -219,14 +178,12 @@ def suggest_filters(
     for feat in valid_cols:
         values = df_clean[feat]
 
-        # Drei Quantile testen: 10 %, 25 %, 75 %, 90 %
         for q in [0.1, 0.25, 0.75, 0.9]:
             try:
                 threshold = float(values.quantile(q))
             except Exception:
                 continue
 
-            # Richtung: unter oder über Schwelle
             for direction in ["above", "below"]:
                 if direction == "above":
                     mask = values > threshold
@@ -237,12 +194,11 @@ def suggest_filters(
                 if n_affected < 30 or n_affected > len(df_clean) - 30:
                     continue
 
-                # Win Rate nach Filter (= nur behalten was NICHT mask ist)
                 keep_mask = ~mask
                 wr_after = df_clean.loc[keep_mask, target_col].mean()
                 improvement = wr_after - baseline_wr
 
-                if improvement > 0.02:  # mind. 2 Prozentpunkte besser
+                if improvement > 0.02:
                     results.append({
                         "feature": feat,
                         "direction": direction,
@@ -262,3 +218,105 @@ def suggest_filters(
     result_df = result_df.head(top_n).reset_index(drop=True)
 
     return result_df
+
+
+# =========================================================
+# PERMUTATIONS-TEST
+# =========================================================
+
+def permutation_test(
+    df: pd.DataFrame,
+    feature_cols: list,
+    target_col: str = "win",
+    n_permutations: int = 100,
+    test_size: float = 0.3,
+    random_state: int = 42,
+) -> dict:
+    """
+    Prüft, ob die echte AUC signifikant besser ist als Zufall.
+    """
+
+    valid_cols = [c for c in feature_cols if c in df.columns]
+    df_clean = df[valid_cols + [target_col]].dropna().copy()
+
+    if len(df_clean) < 100:
+        return {"error": "Zu wenige Trades (min. 100)"}
+
+    X = df_clean[valid_cols].values
+    y = df_clean[target_col].values
+
+    split_idx = int(len(X) * (1 - test_size))
+    X_train, X_test = X[:split_idx], X[split_idx:]
+    y_train, y_test = y[:split_idx], y[split_idx:]
+
+    # Echte AUC
+    model = RandomForestClassifier(
+        n_estimators=100,
+        max_depth=8,
+        random_state=random_state,
+        n_jobs=-1,
+        class_weight="balanced",
+    )
+    model.fit(X_train, y_train)
+    y_proba = model.predict_proba(X_test)[:, 1]
+
+    try:
+        real_auc = float(roc_auc_score(y_test, y_proba))
+    except Exception:
+        real_auc = 0.5
+
+    # Permutationen
+    rng = np.random.default_rng(random_state)
+    perm_aucs = []
+
+    for i in range(n_permutations):
+        y_train_perm = rng.permutation(y_train)
+
+        model_perm = RandomForestClassifier(
+            n_estimators=50,
+            max_depth=8,
+            random_state=int(rng.integers(0, 2**31)),
+            n_jobs=-1,
+            class_weight="balanced",
+        )
+        model_perm.fit(X_train, y_train_perm)
+        y_proba_perm = model_perm.predict_proba(X_test)[:, 1]
+
+        try:
+            auc_perm = float(roc_auc_score(y_test, y_proba_perm))
+        except Exception:
+            auc_perm = 0.5
+
+        perm_aucs.append(auc_perm)
+
+    perm_aucs = np.array(perm_aucs)
+
+    n_better = int((perm_aucs >= real_auc).sum())
+    p_value = (n_better + 1) / (n_permutations + 1)
+
+    percentiles = {
+        "5": float(np.percentile(perm_aucs, 5)),
+        "25": float(np.percentile(perm_aucs, 25)),
+        "50": float(np.percentile(perm_aucs, 50)),
+        "75": float(np.percentile(perm_aucs, 75)),
+        "95": float(np.percentile(perm_aucs, 95)),
+    }
+
+    if p_value < 0.01:
+        verdict = "Sehr starkes Signal (p < 0,01)"
+    elif p_value < 0.05:
+        verdict = "Signifikantes Signal (p < 0,05)"
+    elif p_value < 0.10:
+        verdict = "Schwaches Signal (p < 0,10)"
+    else:
+        verdict = "Kein Signal – Zufall nicht ausschließbar"
+
+    return {
+        "real_auc": real_auc,
+        "perm_aucs": perm_aucs.tolist(),
+        "p_value": float(p_value),
+        "percentiles": percentiles,
+        "verdict": verdict,
+        "n_better": n_better,
+        "n_permutations": n_permutations,
+    }
