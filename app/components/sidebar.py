@@ -120,6 +120,9 @@ def show_sidebar():
         if st.button("🎯  Strategien", width="stretch"):
             st.session_state["page"] = "Strategien"
 
+        if st.button("🤖  ML-Analyse", width="stretch"):
+            st.session_state["page"] = "ML-Analyse"
+
         # -----------------------------------------------------
         # LEARNING
         # -----------------------------------------------------

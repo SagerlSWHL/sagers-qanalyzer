@@ -18,7 +18,7 @@ from views.backtesting import show_backtesting
 from views.strategien import show_strategien
 from core.auth import is_logged_in, render_login_form
 from views.kalender import show_kalender
-
+from views.ml_analysis import show_ml_analysis
 
 
 # ---------------------------------------------------------
@@ -101,6 +101,8 @@ elif st.session_state["page"] == "Strategien":
 elif st.session_state["page"] == "Kalender":
     show_kalender()
 
+elif st.session_state["page"] == "ML-Analyse":
+    show_ml_analysis()
 
 else:
 

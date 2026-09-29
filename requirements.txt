@@ -8,3 +8,5 @@ yfinance
 biquote
 supabase
 python-dotenv
+scikit-learn
+scipy
